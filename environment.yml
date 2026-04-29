@@ -243,7 +243,6 @@ dependencies:
   - spirv-tools=2025.1=hdb19cb5_0
   - sqlite=3.50.2=hb25bd0a_1
   - stack_data=0.6.3=py39h06a4308_0
-  - sympy=1.14.0=py39h06a4308_0
   - tbb=2021.8.0=hdb19cb5_0
   - terminado=0.18.1=py39h06a4308_0
   - threadpoolctl=3.5.0=py39h2f386ee_0
@@ -292,7 +291,27 @@ dependencies:
   - zlib=1.3.1=hb25bd0a_0
   - zstd=1.5.7=h11fc155_0
   - pip:
+      - absl-py==2.3.1
+      - aiohappyeyeballs==2.6.1
+      - aiohttp==3.13.3
+      - aiosignal==1.4.0
+      - async-timeout==5.0.1
+      - fastdtw==0.3.4
+      - frozenlist==1.8.0
+      - fsspec==2025.10.0
       - grpcio==1.76.0
+      - lightning-utilities==0.15.2
+      - markdown==3.9
       - mavsdk==3.10.2
+      - multidict==6.7.1
+      - propcache==0.4.1
       - protobuf==6.33.4
+      - pytorch-lightning==2.6.0
+      - sympy==1.13.1
+      - tensorboard==2.20.0
+      - tensorboard-data-server==0.7.2
+      - torchmetrics==1.8.2
+      - tqdm==4.67.3
+      - werkzeug==3.1.7
+      - yarl==1.22.0
 prefix: /home/zzx/miniconda3/envs/neural-fly

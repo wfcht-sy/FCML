@@ -1,0 +1,3 @@
+lambda_triplet: 2.0
+lr: 5.0e-05
+reg_lambda: 0.0001

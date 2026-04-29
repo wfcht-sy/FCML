@@ -1,0 +1,4 @@
+epochs: 300
+initial_lambda: 0.0
+lr: 0.002
+reg_lambda: 0.0005
