@@ -31,7 +31,7 @@ testmodel/
 
 1. **多范式闭环飞行测试**：包含深度结合 Gazebo 仿真的评估循环（如 `online_mission_compare.py` 等）。支持预置不同风场，对 Baseline、L1、INDI、Neural-Fly 及我们的算法等多路逻辑进行全自动化正面交锋。
 2. **核心模型架构及训练体系**：在 `models.py` 中隔离了所有基础网络定义；通过 `train_offline_lightning.py` 等提供全精度、超稳态的多阶段脱机训练。
-3. **极简的可视化系统**：包括了 `plot_training_curve.py`、`plot_comparison_mission.py`、`visualize_feature_clusters.py`，负责从提取评价指标到绘制收敛图、性能指标并排对比以及隐藏空间的聚类图等。
+3. **极简的可视化系统**：包括了 `plot_training_curve.py`、`plot_comparison_mission.py`、`visualize_feature_clusters.py`，以及用于控制器参数扫参仿真的 `simulate_Ki_sweep.py`，负责从绘制收敛图、评估参数扫参影响，到隐藏空间的聚类图等全链路数据分析。
 4. **高度模块化封装**：将运行指令包裹在特定的 Shell（如 `run_evaluations_mission.sh`）或 Python 命令（如 `run_ablations.py`）中。每步拆解，运行互不干扰，支持按需测试。
 
 ---
@@ -51,10 +51,15 @@ testmodel/
    ./scripts/run_evaluations_mission.sh
    # 可选根据您的需求拆分风况与对比目标
    ```
-4. **验证隐空间特征聚类结果（图 4）**：
+5. **验证隐空间特征聚类结果（图 4）**：
    在获得了一定的训练与在线数据后，随时生成九宫格状态的 t-SNE 聚类地图。
    ```bash
    python3 scripts/evaluation/visualize_feature_clusters.py
+   ```
+6. **控制参数鲁棒性扫参分析**：
+   运行独立的控制理论推导仿真，分析不同 Ki 参数条件下的追踪 RMSE 表现：
+   ```bash
+   python3 scripts/evaluation/simulate_Ki_sweep.py
    ```
 
 ---

@@ -226,7 +226,9 @@ def main():
             ax.legend(title="Wind Condition", bbox_to_anchor=(1.05, 1), loc='upper left', frameon=False, fontsize=13)
 
     plt.tight_layout()
-    save_path = os.path.join(OUTPUT_DIR, "tsne_evolution_final_v2.png")
+    figures_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'figures'))
+    os.makedirs(figures_dir, exist_ok=True)
+    save_path = os.path.join(figures_dir, "tsne_evolution_final_v2.png")
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
     print(f"\n✅ 已生成【演进过程】图表：\n {save_path}")
 
