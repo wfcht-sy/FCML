@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-DTW triplet generator for offline training data alignment.
-
-Aligns no-wind and wind-affected flight trajectories using FastDTW on
-velocity profiles, then constructs (Anchor, Positive, Negative) triplets
-for metric learning.
-"""
-
 import pandas as pd
 import numpy as np
 from fastdtw import fastdtw

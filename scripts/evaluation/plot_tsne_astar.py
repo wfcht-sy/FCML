@@ -5,13 +5,6 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.
 from config import TSNE_CKPT_DIR, CHECKPOINTS_DIR, DTW_CSV as _DTW_CSV, TSNE_RESULTS_DIR, FIGURES_DIR
 
 
-"""
-T-SNE a* feature decoupling evolution visualization script.
-
-Generates a 4-panel figure showing how learned features evolve across
-training stages (Epoch 0, Mid, Final) and compares with Neural-Fly (DAIML).
-"""
-
 import torch
 import pandas as pd
 import numpy as np

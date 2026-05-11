@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Waypoint Mission Mode Exclusive Subplot Plotting Script
-Function: Generates an independent image for each wind condition, preventing 
-trajectory overlap and clearly showing the 90s long-duration error accumulation.
-"""
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt

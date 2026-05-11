@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Ki Parameter Sweep Analysis (Simulation-based)
-
-Separates experiment logic (simulate_for_rmse) from plotting logic (plot_sweep).
-Can be imported as a module or run standalone.
-"""
 import numpy as np
 import matplotlib.pyplot as plt
 import os

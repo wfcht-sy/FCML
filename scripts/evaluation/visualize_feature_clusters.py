@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-High-dimensional feature manifold analysis (attitude-based clustering).
-
-Generates Fig 4 (t-SNE) and Fig 5 (LDA/PCA) to demonstrate that the learned
-feature representation is dominated by physical flight attitude rather than
-wind conditions.
-"""
-
 import torch
 import torch.nn as nn
 import pandas as pd

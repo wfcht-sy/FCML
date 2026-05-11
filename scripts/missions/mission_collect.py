@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Flight data processor: converts raw PX4 ULG-derived CSV files into
-standardized 50Hz training data with computed aerodynamic residuals.
-"""
-
 import pandas as pd
 import numpy as np
 from scipy.spatial.transform import Rotation as R

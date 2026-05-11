@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Feature extraction network definitions (dual architecture).
-
-Separated into a standalone module to ensure structural alignment between
-the offline training pipeline and the online deployment controller.
-"""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Virtual waypoint mission comparison plotting script.
-
-Generates Fig 1 (RMSE bar chart), Fig 2 (trajectory plots per wind condition),
-and Fig 3 (force tracking plots per wind condition) for all 5 controllers.
-"""
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt

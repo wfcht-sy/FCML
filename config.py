@@ -1,10 +1,3 @@
-"""
-Project-wide configuration.
-
-All paths are derived from this file's location (PROJECT_ROOT).
-Users should only need to modify PX4_DIR if the PX4-Autopilot
-is installed in a non-default location.
-"""
 import os
 
 # ---------------------------------------------------------------------------

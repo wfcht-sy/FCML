@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Training convergence comparison plot (Original Neural-Fly DAIML vs. FCML DTW-Triplet).
-
-Generates Fig 0 showing validation MSE curves to demonstrate faster convergence
-and superior generalization of the proposed method.
-"""
 import pandas as pd
 import matplotlib.pyplot as plt
 import os

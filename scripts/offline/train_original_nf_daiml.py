@@ -4,14 +4,6 @@ import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 from config import PROCESSED_DIR, CHECKPOINTS_DIR
 
-"""
-Original Neural-Fly (DAIML) offline training reproduction script.
-
-Implements Domain Adversarial Invariant Meta-Learning with Gradient Reversal
-Layer (GRL) and Domain Discriminator. Used as the baseline comparison against
-our FCML (DTW-Triplet) approach.
-"""
-
 import torch
 import torch.nn as nn
 import torch.optim as optim

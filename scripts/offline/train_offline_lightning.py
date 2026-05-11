@@ -1,15 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-FCML offline training script (DTW-Triplet with PyTorch Lightning).
-
-Key design choices:
-1. FP64 precision throughout to eliminate truncation errors at convergence.
-2. Triplet loss applied only to dynamic features ([:, :-1]), preserving the
-   constant bias term from normalization interference.
-3. Orthogonal initialization + cosine annealing for fast initial convergence.
-"""
-
 import torch
 import torch.nn as nn
 import torch.optim as optim

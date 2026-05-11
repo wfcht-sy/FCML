@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Pure Original PID (Baseline) 30s Performance Test Script - Outer-loop Geometric Attitude Injection
-Core functions:
-1. Bypass position loop: No longer use PVA interface, completely bypass PX4's position and velocity smoothing filters.
-2. Geometric tracking: Calculate PD + kinematic feedforward directly in Python, compute expected acceleration and convert to Attitude injection.
-3. Verify limits: Should approach physical tracking limits (near-zero error) in no-wind conditions.
-"""
-
 import asyncio
 import numpy as np
 import pandas as pd

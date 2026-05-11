@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-FCML offline training with T-SNE milestone snapshots.
-
-Identical to train_offline_lightning.py but additionally saves model
-checkpoints at epoch 0, mid-training, and final convergence for
-T-SNE feature evolution visualization.
-"""
-
 import torch
 import torch.nn as nn
 import torch.optim as optim

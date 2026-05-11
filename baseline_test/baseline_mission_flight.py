@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Native PX4 Waypoint Mission Test Script
-Logic:
-1. Tighten NAV_ACC_RAD to 1m
-2. Extend trajectory to 5 loops, relax total flight time to 90 seconds.
-"""
-
 import asyncio
 import numpy as np
 import pandas as pd

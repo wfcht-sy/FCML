@@ -3,14 +3,6 @@
 import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-"""
-Multi-controller comparison flight script.
-
-Implements 5 control strategies (Baseline PID, INDI, L1, Neural-Fly, FCML)
-with virtual waypoint navigation and time-guaranteed progression to ensure
-fair trajectory completion for all controllers.
-"""
-
 import asyncio
 import numpy as np
 import pandas as pd
