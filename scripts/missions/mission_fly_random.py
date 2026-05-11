@@ -52,19 +52,19 @@ class Random2SplineTrajectory:
 
 async def execute_flight_mission(wind_parameters: list, random_seed: int) -> None:
     drone = System()
-    print("  [飞行器] 正在连接 MAVSDK (udpin://0.0.0.0:14540)...")
+    print("  [System] Connecting to MAVSDK (udpin://0.0.0.0:14540)...")
     await drone.connect(system_address="udpin://0.0.0.0:14540")
     async for state in drone.core.connection_state():
         if state.is_connected: break
 
-    print("  [飞行器] 正在等待 GPS 锁定...")
+    print("  [System] Waiting for GPS lock...")
     async for health in drone.telemetry.health():
         if health.is_global_position_ok and health.is_home_position_ok: break
         await asyncio.sleep(1)
 
     subprocess.run(["bash", "./set_wind.sh"] + wind_parameters, check=False)
 
-    print("  [飞行器] 解锁并起飞...")
+    print("  [System] Arming and taking off...")
     try: await drone.action.arm()
     except Exception: return
 
@@ -82,7 +82,7 @@ async def execute_flight_mission(wind_parameters: list, random_seed: int) -> Non
     try: await drone.offboard.start()
     except OffboardError: return
 
-    print(f"  [飞行器] 开始 Random2 纯航点飞行 ({FLIGHT_DURATION_SEC} 秒)...")
+    print(f"  [Mission] Starting Random2 spline waypoint flight ({FLIGHT_DURATION_SEC} s)...")
     mission_start_time = time.time()
     time_step_sec = 1.0 / CONTROL_UPDATE_RATE_HZ
     last_print_time = 0
@@ -90,26 +90,26 @@ async def execute_flight_mission(wind_parameters: list, random_seed: int) -> Non
     while time.time() - mission_start_time < FLIGHT_DURATION_SEC:
         elapsed = time.time() - mission_start_time
         if time.time() - last_print_time > 5.0:
-            print(f"    -> 飞行进度: {elapsed:.1f} / {FLIGHT_DURATION_SEC} 秒")
+            print(f"    -> Flight progress: {elapsed:.1f} / {FLIGHT_DURATION_SEC} s")
             last_print_time = time.time()
 
         target_x, target_y, target_z, target_yaw = trajectory_generator.get_target_pose(elapsed)
         await drone.offboard.set_position_ned(PositionNedYaw(target_x, target_y, target_z, target_yaw))
         await asyncio.sleep(time_step_sec)
 
-    print("  [飞行器] 时间到，正在降落...")
+    print("  [System] Mission time up, landing...")
     try: await drone.offboard.stop()
     except Exception: pass
     await drone.action.land()
 
-    # === 修复死锁的关键区域 ===
-    print("  [飞行器] 等待触地并自动上锁...")
+    # Prevent deadlock
+    print("  [System] Waiting for touchdown and auto-disarm...")
     async for is_armed in drone.telemetry.armed():
         if not is_armed:
-            print("  [飞行器] 已成功上锁！安全退出。")
+            print("  [System] Successfully disarmed. Exiting safely.")
             break
 
-    os._exit(0) # 强行抹杀进程，防止 gRPC 线程死锁
+    os._exit(0) # Force exit to prevent gRPC thread deadlocks
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

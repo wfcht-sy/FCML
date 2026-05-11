@@ -1,19 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import os
+import sys
 import subprocess
 import glob
 import shutil
 
-BASE_DIR = "/home/zzx/testmodel"
-TRAIN_DIR = os.path.join(BASE_DIR, "training_results")
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+from config import PROJECT_ROOT, TRAINING_DIR, CHECKPOINTS_DIR
+
+BASE_DIR = PROJECT_ROOT
+TRAIN_DIR = TRAINING_DIR
 os.makedirs(TRAIN_DIR, exist_ok=True)
 
 def run_training_and_extract(lambda_val, scheme_name):
     out_dir = os.path.join(TRAIN_DIR, f"run_{scheme_name}")
-    print(f"\n{'='*50}\n🚀 开始训练: {scheme_name} (Triplet Lambda = {lambda_val})\n{'='*50}")
+    print(f"\n{'='*50}\nStarting training: {scheme_name} (Triplet Lambda = {lambda_val})\n{'='*50}")
     
-    # 调用更新后的训练脚本
     cmd = f"python3 train_offline_lightning.py --lambda_triplet {lambda_val} --output_dir {out_dir}"
     subprocess.run(cmd, shell=True, check=True)
 
@@ -22,16 +25,15 @@ def run_training_and_extract(lambda_val, scheme_name):
         latest_csv = max(csv_files, key=os.path.getctime)
         dest_csv = os.path.join(TRAIN_DIR, f"curve_{scheme_name}.csv")
         shutil.copy(latest_csv, dest_csv)
-        print(f"\n✅ [{scheme_name}] 训练曲线数据已自动提取: {dest_csv}")
+        print(f"\n[{scheme_name}] Training curve extracted: {dest_csv}")
         
         if scheme_name == "ours":
-            main_ckpt_dir = os.path.join(BASE_DIR, "checkpoints")
-            os.makedirs(main_ckpt_dir, exist_ok=True)
-            shutil.copy(os.path.join(out_dir, "best_model.pth"), os.path.join(main_ckpt_dir, "best_model.pth"))
+            os.makedirs(CHECKPOINTS_DIR, exist_ok=True)
+            shutil.copy(os.path.join(out_dir, "best_model.pth"), os.path.join(CHECKPOINTS_DIR, "best_model.pth"))
 
 if __name__ == "__main__":
-    # 1. 原版 Neural-Fly (纯 MSE)
+    # 1. Original Neural-Fly (pure MSE, no triplet)
     run_training_and_extract(0.0, "original")
-    # 2. 我们的方案 (动态衰减 Triplet)
+    # 2. FCML (with decaying triplet loss)
     run_training_and_extract(1.0, "ours")
-    print("\n🎉 全部消融实验结束！您可以运行 python3 plot_training_curve.py 查看对比了。")
+    print("\nAll ablation experiments completed! Run plot_training_curve.py to view the comparison.")

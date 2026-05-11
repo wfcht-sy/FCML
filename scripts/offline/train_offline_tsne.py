@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Neural-Fly 离线训练脚本 (DTW-Triplet 极限俯冲 + T-SNE 聚类快照隔离版)
-修改点：默认输出目录已更改为独立文件夹，防止覆盖原有模型。
+FCML offline training with T-SNE milestone snapshots.
+
+Identical to train_offline_lightning.py but additionally saves model
+checkpoints at epoch 0, mid-training, and final convergence for
+T-SNE feature evolution visualization.
 """
 
 import torch
@@ -13,12 +16,16 @@ import pandas as pd
 import numpy as np
 import argparse
 import os
+import sys
 import pytorch_lightning as pl
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+from config import DTW_CSV, TSNE_CKPT_DIR
 from pytorch_lightning.callbacks import ModelCheckpoint, Callback
 from pytorch_lightning.loggers import TensorBoardLogger, CSVLogger
 from torch.utils.data import Dataset, DataLoader
 
-# ================= [探底核心 1]: 全局强制 FP64 双精度 =================
+# Global FP64 precision
 torch.set_default_dtype(torch.float64)
 
 BASIS_DIM, INPUT_DIM, FORCE_SCALE = 8, 11, 6.0    
@@ -35,7 +42,6 @@ class DTWTripletDataset(Dataset):
                 if col in self.df.columns and self.df[col].mean() > 100: 
                     self.df[col] = (self.df[col] - 1500.0) / 500.0
 
-        # 确保数据集以 FP64 加入内存
         self.state_a = torch.tensor(self.df[[f'A_{c}' for c in self.feat_cols]].values, dtype=torch.float64)
         self.force_a = torch.tensor(self.df[[f'A_{c}' for c in self.label_cols]].values, dtype=torch.float64) / FORCE_SCALE
         self.state_p = torch.tensor(self.df[[f'P_{c}' for c in self.feat_cols]].values, dtype=torch.float64)
@@ -59,16 +65,13 @@ class PhiNetwork(nn.Module):
         out = F.relu(self.fc2(out))
         out = F.relu(self.fc3(out))
         out = self.fc4(out)
-        # 拼接常数 1 作为基础阻力偏置
+        # Append constant bias term
         bias = torch.ones((out.shape[0], 1), device=out.device, dtype=out.dtype)
         return torch.cat([out, bias], dim=-1)
 
-# ================= [T-SNE 专用 Callback] =================
+# ================= T-SNE Milestone Callback =================
 class TSNEMilestoneCallback(Callback):
-    """
-    专门为绘制 a* 的 T-SNE 图收集不同阶段的网络快照。
-    评价指标：监控 val_score (MSE)。
-    """
+    """Saves model snapshots at key training stages for T-SNE visualization."""
     def __init__(self, save_dir):
         super().__init__()
         self.save_dir = save_dir
@@ -82,19 +85,18 @@ class TSNEMilestoneCallback(Callback):
         if val_loss is None: return
         val_loss = val_loss.item()
 
-        # 1. 抓取 Epoch 0 (未经训练的混乱特征空间)
+        # Capture epoch 0 (untrained, chaotic feature space)
         if epoch == 0:
             path = os.path.join(self.save_dir, "tsne_model_epoch_0.pth")
             torch.save({'model_state_dict': pl_module.phi_net.state_dict(), 'basis_dim': BASIS_DIM}, path)
-            print(f"\n[T-SNE 采集] 已保存初始状态 Epoch 0 -> {path}")
+            print(f"\n[T-SNE] Saved initial state (Epoch 0) -> {path}")
 
-        # 2. 抓取中途探底期 (例如 Epoch 30 到 150) 的最好瞬间
+        # Capture best mid-training snapshot (epoch 30-150)
         if 30 <= epoch <= 150:
             if val_loss < self.best_mid_loss:
                 self.best_mid_loss = val_loss
                 path = os.path.join(self.save_dir, "tsne_model_epoch_mid.pth")
                 torch.save({'model_state_dict': pl_module.phi_net.state_dict(), 'basis_dim': BASIS_DIM}, path)
-                # 只有在突破历史最低时才静默保存，覆盖旧的中期文件
 
 class NeuralFlyLightning(pl.LightningModule):
     def __init__(self, lr=3e-3, lambda_triplet=1.0, reg_lambda=1e-5, epochs=300):
@@ -136,7 +138,7 @@ class NeuralFlyLightning(pl.LightningModule):
         
         loss_task = self.mse_fn(pred_a, force_a[split:]) + self.mse_fn(pred_p, force_p[split:])
         
-        # 维度污染隔离
+        # Triplet loss on dynamic features only (exclude bias dimension)
         phi_a_norm = F.normalize(phi_a[:, :-1], p=2, dim=1)
         phi_p_norm = F.normalize(phi_p[:, :-1], p=2, dim=1)
         phi_n_norm = F.normalize(phi_n[:, :-1], p=2, dim=1)
@@ -172,17 +174,12 @@ def main(args):
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, drop_last=True, num_workers=4)
     
     model = NeuralFlyLightning(lr=args.lr, lambda_triplet=args.lambda_triplet, epochs=args.epochs)
-    
-    # [关键修改]: 创建独立的输出目录，不污染原有的 checkpoints
     os.makedirs(args.output_dir, exist_ok=True)
     
     tb_logger = TensorBoardLogger(args.output_dir, name="lightning_logs")
     csv_logger = CSVLogger(args.output_dir, name="lightning_logs")
     
-    # 全局最优保存 (对应 T-SNE 最后一个子图 Ours 最终效果)
     checkpoint_callback = ModelCheckpoint(monitor='val_score', dirpath=args.output_dir, filename='neural_fly_best', save_top_k=1, mode='min')
-    
-    # 注册 T-SNE 里程碑收集器
     tsne_collector = TSNEMilestoneCallback(save_dir=args.output_dir)
     
     trainer = pl.Trainer(
@@ -198,20 +195,17 @@ def main(args):
     best_pl_model = NeuralFlyLightning.load_from_checkpoint(checkpoint_callback.best_model_path)
     torch.save({'model_state_dict': best_pl_model.phi_net.state_dict(), 'basis_dim': BASIS_DIM}, os.path.join(args.output_dir, "best_model.pth"))
     
-    print("\n✅ 训练完毕！用于 T-SNE 画图的模型已经安全隔离并准备好：")
-    print(f"1. Epoch 0 初始点: {os.path.join(args.output_dir, 'tsne_model_epoch_0.pth')}")
-    print(f"2. 中期剥离探底点: {os.path.join(args.output_dir, 'tsne_model_epoch_mid.pth')}")
-    print(f"3. 最终最优收敛点: {os.path.join(args.output_dir, 'best_model.pth')}")
+    print("\nTraining complete! T-SNE milestone models saved:")
+    print(f"1. Epoch 0 (initial): {os.path.join(args.output_dir, 'tsne_model_epoch_0.pth')}")
+    print(f"2. Mid-training best: {os.path.join(args.output_dir, 'tsne_model_epoch_mid.pth')}")
+    print(f"3. Final converged:   {os.path.join(args.output_dir, 'best_model.pth')}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dtw_csv", type=str, default="/home/zzx/testmodel/dtw_triplets_data/dtw_triplet_combined_all.csv")
-    
-    # [关键修改]: 将默认的输出目录改为了新建的 tsne_checkpoints 文件夹
-    parser.add_argument("--output_dir", type=str, default="/home/zzx/testmodel/tsne_checkpoints")
-    
+    parser.add_argument("--dtw_csv", type=str, default=DTW_CSV)
+    parser.add_argument("--output_dir", type=str, default=TSNE_CKPT_DIR)
     parser.add_argument("--epochs", type=int, default=300) 
     parser.add_argument("--batch_size", type=int, default=512) 
     parser.add_argument("--lr", type=float, default=3e-3) 
-    parser.add_argument("--lambda_triplet", type=float, default=1.0) 
+    parser.add_argument("--lambda_triplet", type=float, default=1.0)
     main(parser.parse_args())

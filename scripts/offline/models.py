@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-核心特征提取网络库 (双架构统一管理)
-分离出单独文件，确保训练端与在线部署端的结构绝对对齐！
+Feature extraction network definitions (dual architecture).
+
+Separated into a standalone module to ensure structural alignment between
+the offline training pipeline and the online deployment controller.
 """
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# ================== [架构 1]: 原版 Neural-Fly 网络 (保持原名，兼容 DAIML 训练) ==================
+# ================== Architecture 1: Original Neural-Fly Network ==================
+# Retains original name for backward compatibility with DAIML training checkpoints.
 class PhiNetwork(nn.Module):
     def __init__(self, input_dim=11, basis_dim=8):
         super(PhiNetwork, self).__init__()
@@ -22,7 +25,7 @@ class PhiNetwork(nn.Module):
     def forward(self, x): 
         return self.net(x)
 
-# ================== [架构 2]: 我们方案 (DTW-Triplet) 网络 ==================
+# ================== Architecture 2: FCML Network (DTW-Triplet) ==================
 class PhiNetworkOurs(nn.Module):
     def __init__(self, input_dim=11, basis_dim=8):
         super(PhiNetworkOurs, self).__init__()
@@ -36,6 +39,6 @@ class PhiNetworkOurs(nn.Module):
         out = F.relu(self.fc2(out))
         out = F.relu(self.fc3(out))
         out = self.fc4(out)
-        # Ours 专有: 拼接常数物理偏置 1.0
+        # Append constant bias term (1.0) as the base drag offset
         bias = torch.ones((out.shape[0], 1), device=out.device, dtype=out.dtype)
         return torch.cat([out, bias], dim=-1)

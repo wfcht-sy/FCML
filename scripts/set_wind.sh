@@ -1,6 +1,6 @@
 #!/bin/bash
-# 工具脚本，用来设置Gazebo仿真中的风参数（平均风速和阵风参数）
-# 用法: ./set_wind.sh <MeanX> <MeanY> <MeanZ> <GustX> <GustY> <GustZ>
+# Utility script to set Gazebo wind parameters (mean velocity and gust parameters)
+# Usage: ./set_wind.sh <MeanX> <MeanY> <MeanZ> <GustX> <GustY> <GustZ>
 TOPIC_MEAN="/gazebo/default/mean_wind_cmd"
 TOPIC_GUST="/gazebo/default/gust_params_cmd"
 

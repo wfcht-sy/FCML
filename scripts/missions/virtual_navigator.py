@@ -18,12 +18,12 @@ class VirtualWaypointNavigator:
         if self.current_idx >= self.num_points:
             return self.waypoints[-1], True
             
-        # 1. 空间距离判定
+        # 1. Spatial proximity check
         target_p = self.waypoints[self.current_idx]
         if np.linalg.norm(target_p - current_p) < self.acceptance_radius:
             self.current_idx += 1
             
-        # 2. 时间进度强制约束 (保障全局收敛性)
+        # 2. Time-guaranteed progression (ensures global convergence)
         min_expected_idx = int((t / self.total_time) * self.num_points)
         if self.current_idx < min_expected_idx:
             self.current_idx = min_expected_idx

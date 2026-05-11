@@ -2,12 +2,14 @@
 # -*- coding: utf-8 -*-
 import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+from config import PROCESSED_DIR, CHECKPOINTS_DIR
 
 """
-原版 Neural-Fly (DAIML) 离线训练复现脚本
-- 采用 Domain Adversarial Invariant Meta-Learning 架构。
-- 引入 Gradient Reversal Layer (GRL) 和 Domain Discriminator。
-- 用于与我们的 DTW-Triplet 方案进行背靠背的基线对比。
+Original Neural-Fly (DAIML) offline training reproduction script.
+
+Implements Domain Adversarial Invariant Meta-Learning with Gradient Reversal
+Layer (GRL) and Domain Discriminator. Used as the baseline comparison against
+our FCML (DTW-Triplet) approach.
 """
 
 import torch
@@ -26,7 +28,7 @@ from scripts.offline.models import PhiNetwork
 
 BASIS_DIM, INPUT_DIM, FORCE_SCALE = 8, 11, 6.0    
 
-# ================= 1. GRL 与域判别器 (复现 Neural-Fly 核心) =================
+# ================= 1. GRL and Domain Discriminator (Neural-Fly Core) =================
 class GradientReversalLayer(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x, alpha):
@@ -49,10 +51,10 @@ class DomainDiscriminator(nn.Module):
         )
     def forward(self, x): return self.net(x)
 
-# ================= 2. DAIML 数据集适配 =================
+# ================= 2. DAIML Dataset Adapter =================
 class DAIMLDataset(Dataset):
     def __init__(self, processed_dir):
-        # 直接读取 processed_data 下的各个风况 CSV，并赋予 Domain Label
+        # Read per-wind-condition CSVs and assign domain labels
         csv_files = sorted(glob.glob(os.path.join(processed_dir, "processed_train_*wind.csv")))
         self.num_domains = len(csv_files)
         
@@ -77,7 +79,7 @@ class DAIMLDataset(Dataset):
     def __len__(self): return len(self.states)
     def __getitem__(self, idx): return self.states[idx], self.forces[idx], self.labels[idx]
 
-# ================= 3. PyTorch Lightning 模块 =================
+# ================= 3. PyTorch Lightning Module =================
 class OriginalNeuralFlyDAIML(pl.LightningModule):
     def __init__(self, num_domains, lr=1e-3, lambda_adv=0.1, reg_lambda=1e-4, epochs=300):
         super().__init__()
@@ -99,27 +101,25 @@ class OriginalNeuralFlyDAIML(pl.LightningModule):
         states, forces, domain_labels = batch
         phi = self.phi_net(states)
         
-        # 1. 域对抗损失 (Domain Adversarial Loss)
-        # 通过 GRL 反转梯度，迫使特征提取器消除域信息
+        # 1. Domain adversarial loss (GRL forces domain-invariant features)
         phi_rev = grad_reverse(phi, alpha=1.0)
         domain_preds = self.discriminator(phi_rev)
         loss_adv = self.ce_fn(domain_preds, domain_labels)
         
-        # 2. 元学习任务损失 (Meta-Learning Task Loss)
-        # 严格按照 Neural-Fly 论文：划分 Support 和 Query 计算最优 a_hat
+        # 2. Meta-learning task loss (support/query split per Neural-Fly paper)
         split = states.shape[0] // 2
         a_star = self.batch_least_squares(phi[:split], forces[:split])
         pred_forces = torch.matmul(phi[split:], a_star)
         loss_task = self.mse_fn(pred_forces, forces[split:])
         
-        # 3. 总损失
+        # 3. Total loss
         total_loss = loss_task + self.hparams.lambda_adv * loss_adv
         
         self.log(f'{mode}_mse', loss_task, on_step=False, on_epoch=True, prog_bar=(mode=="train"))
         self.log(f'{mode}_adv', loss_adv, on_step=False, on_epoch=True, prog_bar=False)
         self.log(f'{mode}_total', total_loss, on_step=False, on_epoch=True, prog_bar=False)
         
-        # 核心评估指标依然是泛化 MSE
+        # Primary evaluation metric: generalization MSE
         if mode == "val": self.log('val_score', loss_task, on_step=False, on_epoch=True, prog_bar=True)
         return total_loss
 
@@ -148,18 +148,16 @@ def main(args):
     trainer = pl.Trainer(max_epochs=args.epochs, logger=[tb_logger, csv_logger], callbacks=[checkpoint_callback], accelerator="auto", devices=1)
     trainer.fit(model, train_loader, val_loader)
     
-    # 提取权重以保证通用性
+    # Extract weights for deployment compatibility
     best_pl_model = OriginalNeuralFlyDAIML.load_from_checkpoint(checkpoint_callback.best_model_path)
-    # [核心修复]: 存为专属的 neural_fly_daiml_best.pth，防止覆盖 Ours 的权重！
     torch.save({'model_state_dict': best_pl_model.phi_net.state_dict(), 'basis_dim': BASIS_DIM}, os.path.join(args.output_dir, "neural_fly_daiml_best.pth"))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    # 注意：这里读取的是原始风况数据，而不是 DTW 三元组
-    parser.add_argument("--processed_dir", type=str, default="/home/zzx/testmodel/processed_data")
-    parser.add_argument("--output_dir", type=str, default="/home/zzx/testmodel/checkpoints")
+    parser.add_argument("--processed_dir", type=str, default=PROCESSED_DIR)
+    parser.add_argument("--output_dir", type=str, default=CHECKPOINTS_DIR)
     parser.add_argument("--epochs", type=int, default=300) 
     parser.add_argument("--batch_size", type=int, default=512)
     parser.add_argument("--lr", type=float, default=1e-3)
-    parser.add_argument("--lambda_adv", type=float, default=0.1) # DAIML 的对抗权重
+    parser.add_argument("--lambda_adv", type=float, default=0.1)
     main(parser.parse_args())

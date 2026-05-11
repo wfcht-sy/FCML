@@ -1,80 +1,189 @@
-# Model Training & Evaluation Framework
+# DTW-Triplet: Offline Training & Online Adaptive Control Framework
 
-本仓库包含用于离线模型训练、控制算法在线仿真对比以及实验结果可视化的完整代码环境。核心目标是通过模拟不同风扰动下的飞行任务，验证各控制策略及模型的抗风与跟踪性能。
+![Python](https://img.shields.io/badge/Python-3.9-blue)
+![Platform](https://img.shields.io/badge/Platform-Ubuntu_20.04%20%7C%2022.04-orange)
+![PX4](https://img.shields.io/badge/PX4-Autopilot-green)
 
----
+This repository contains the complete codebase for offline model training, online adaptive flight control evaluation, and experiment result visualization. The core objective is to validate tracking and wind-rejection performance of various control strategies (Baseline PID, INDI, L1, Neural-Fly, and our proposed FCML method) under simulated wind disturbances.
 
-## 目录结构
+### Dependencies and Prerequisites
 
-```text
-testmodel/
-├── checkpoints/                # 训练好的模型权重与检查点
-├── dtw_triplets_data/          # 提取及处理完毕的 DTW-Triplet 训练数据集
-├── eval_results/               # 在线飞行性能评估的原始评价数据与统计指标
-├── figures/                    # 自动生成的各类可视化输出图表（收敛曲线图、对比图等）
-├── processed_data/             # 其他离线训练及评估的预处理数据
-├── raw_logs/                   # 每次运行测试的底层日志
-├── training_results/           # 离线训练的中间过程数据与输出
-├── tsne_checkpoints/           # t-SNE 降维分析用到的模型参数
-├── tsne_results/               # t-SNE 可视化的中间数据和结果
-├── scripts/                    # 核心脚本目录，按功能模块细分：
-│   ├── alignment/              # 数据对齐与预处理工具（如 dtwTriplet 生成）
-│   ├── evaluation/             # 用于绘制收敛曲线、对比图与t-SNE聚类的评估生成脚本
-│   ├── missions/               # 无人机在线仿真与数据采集飞行任务脚本
-│   ├── offline/                # 离线核心算法与模型训练（基于PyTorch Lightning等），包含 models.py
-│   └── *.sh                    # 各类打包组合（多模型、多风场）的自动化测试入口脚本与数据流配置
-└── readme.md                   # 本文档
+We developed and tested DTW-Triplet on **Ubuntu 20.04/22.04 LTS** and **Python 3.9**.
+You need to build PX4 in order to use simulators for online flight evaluations.
+Before building the PX4, you must first install the **Developer Toolchain** for your host operating system and target hardware.
+
+**Git LFS** is required for downloading large data files (model checkpoints, datasets).
+- Dependencies Disk Space: ~7.7 GB
+- Repository with datasets: ~2.9 GB
+
+Install Git LFS on Ubuntu:
+```bash
+sudo apt install git-lfs
+git lfs install
 ```
----
 
-## 主要功能
+**IMPORTANT NOTE**
+1. We recommend to **create a virtual environment** before proceeding the installation.
+2. The installation scripts are intended to be run on *clean* Ubuntu LTS installations.
 
-1. **多范式闭环飞行测试**：包含深度结合 Gazebo 仿真的评估循环（如 `online_mission_compare.py` 等）。支持预置不同风场，对 Baseline、L1、INDI、Neural-Fly 及我们的算法等多路逻辑进行全自动化正面交锋。
-2. **核心模型架构及训练体系**：在 `models.py` 中隔离了所有基础网络定义；通过 `train_offline_lightning.py` 等提供全精度、超稳态的多阶段脱机训练。
-3. **极简的可视化系统**：包括了 `plot_training_curve.py`、`plot_comparison_mission.py`、`visualize_feature_clusters.py`，以及用于控制器参数扫参仿真的 `simulate_Ki_sweep.py`，负责从绘制收敛图、评估参数扫参影响，到隐藏空间的聚类图等全链路数据分析。
-4. **高度模块化封装**：将运行指令包裹在特定的 Shell（如 `run_evaluations_mission.sh`）或 Python 命令（如 `run_ablations.py`）中。每步拆解，运行互不干扰，支持按需测试。
+### One-line Quick Setup
 
----
+We provide a bash script to setup the project dependencies, conda environment, and PX4-Autopilot toolchains.
 
-## 快速上手
+First, retrieve the repository and pull all LFS files:
+```bash
+git clone <repository_url>
+cd testmodel
+git lfs pull
+```
 
-1. 确保安装全部基本依赖（如 PyTorch、pandas、MAVSDK 以及 PX4-SITL/Gazebo 基础组件）。
-2. **训练模型与获取收敛比对图（图 0）**：
-   利用包装好的对比框架，一次执行将会自我对账多轮训练并画出损失曲线。
+Then, run the one-line setup script:
+```bash
+bash setup.sh all
+```
+Following the instruction to download and setup the environment.
+If you plan to run online flight evaluations in Gazebo, also run:
+```bash
+bash setup.sh px4
+```
+Reboot the computer to complete the setup.
+After that, read the **Quick Start** section to verify the installation.
+
+### Manual Setup Guide
+If the auto installation was interrupted, or a manual configuration is preferred, read the following manual setup guide:
+
+1. **Create the Conda Environment**
+   Install Miniconda if you don't have it, then:
    ```bash
-   python3 scripts/offline/run_ablations.py
-   python3 scripts/evaluation/plot_training_curve.py
+   conda env create -f environment.yml
+   conda activate neural-fly
    ```
-3. **执行在线飞行性能评估（图 1、2、3）**：
-   本指令依序遍历各风层与各个对照组模型进行模拟，完成后将自动呼叫制图脚本。
+
+2. **Install PyTorch**
+   The `environment.yml` intentionally **does not include PyTorch**. Install it manually based on your system:
+   *(CPU only)*
    ```bash
-   ./scripts/run_evaluations_mission.sh
-   # 可选根据您的需求拆分风况与对比目标
+   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
    ```
-5. **验证隐空间特征聚类结果（图 4）**：
-   在获得了一定的训练与在线数据后，随时生成九宫格状态的 t-SNE 聚类地图。
+   *(GPU CUDA 12.4)*
    ```bash
-   python3 scripts/evaluation/visualize_feature_clusters.py
+   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
    ```
-6. **控制参数鲁棒性扫参分析**：
-   运行独立的控制理论推导仿真，分析不同 Ki 参数条件下的追踪 RMSE 表现：
+
+3. **Install Additional Dependencies**
    ```bash
-   python3 scripts/evaluation/simulate_Ki_sweep.py
+   pip install pytorch-lightning==2.6.0 tensorboard==2.20.0 tensorboard-data-server==0.7.2 torchmetrics==1.8.2 lightning-utilities==0.15.2
    ```
 
----
+4. **Retrieve and Setup PX4-Autopilot (Optional, for online flight)**
+   ```bash
+   git clone --recursive https://github.com/PX4/PX4-Autopilot.git ~/PX4-Autopilot
+   cd ~/PX4-Autopilot
+   bash Tools/setup/ubuntu.sh
+   ```
 
-## 开发与扩展
+5. **[IMPORTANT] Python Environment Fix for PX4**
+   PX4 1.13+ toolchain is incompatible with empy 4.x+. Please rollback to legacy version:
+   ```bash
+   pip uninstall empy
+   pip install empy==3.3.4
+   ```
+6. Restart the computer after the toolchain is installed, then build PX4 with `make px4_sitl gazebo-classic`.
 
-- **配置新模型参数与结构**：修改 `models.py` 补充架构定义，在训练及运行端统一引用。针对特定的探底、退火等行为可定制化修改 `train_offline_lightning.py`。
-- **添加复合风况条件**：针对 `run_evaluations_mission.sh` 等调用脚本中的 `test_winds` 数组，增设更多的动态或静态风序列组合。
-- **自定义绘图输出**：所有的结果收集及绘图位于对应名称的 `plot_*.py` 中。如补充更多柱状、散点、雷达指标可扩写 `plot_comparison_mission.py` 文件内部逻辑。
+### Quick Start (Evaluations & Training)
 
----
+1. **Reproduce Training (Fig 0: Convergence Curves)**
+   Run ablation studies to train models and extract convergence data:
+   ```bash
+   conda activate neural-fly
+   python scripts/offline/run_ablations.py
+   python scripts/evaluation/plot_training_curve.py
+   ```
 
-## 维护者
+2. **Generate T-SNE Evolution (T-SNE Feature Visualization)**
+   ```bash
+   python scripts/offline/train_offline_tsne.py
+   python scripts/evaluation/plot_tsne_astar.py
+   ```
 
-请保持 README 同步更新。当添加新的模块或重构目录结构时，记得调整本说明文档。不要忘记始终检查端到端飞行数据的完备性。
+3. **Online Flight Evaluation (Fig 1-3: Flight Performance)**
+   Requires PX4-Autopilot + Gazebo installed. This runs all 5 controllers × 5 wind conditions = 25 flight tests, then generates comparison figures.
+   ```bash
+   bash scripts/run_evaluations_mission.sh
+   ```
 
----
-*生成于 2026-04，基于仓库现有代码。*
+4. **Feature Clustering Analysis (Fig 4-5)**
+   ```bash
+   python scripts/evaluation/visualize_feature_clusters.py
+   ```
+
+5. **Ki Parameter Sweep (Control Parameter Analysis)**
+   ```bash
+   python scripts/evaluation/simulate_Ki_sweep.py
+   ```
+
+### Data Pipeline Configuration
+
+All project paths are managed centrally in `config.py`. By default, paths are relative to the project root. You only need to modify `config.py` if your PX4-Autopilot is installed in a non-default location, or use:
+```bash
+export PX4_DIR=/path/to/your/PX4-Autopilot
+```
+
+**Extracting Data from Raw Flight Logs**
+If you have raw PX4 `.ulg` flight logs, convert them to CSV using `pyulog`, then process the CSV files into the training format:
+```bash
+python scripts/missions/mission_collect.py
+```
+
+**Generating DTW Triplets**
+After data processing:
+```bash
+python scripts/alignment/generate_dtw_triplets.py
+```
+
+## Directory Structure
+
+```
+testmodel
+├── config.py                   # Centralized path configuration
+├── setup.sh                    # One-line quick setup script
+├── environment.yml             # Conda environment specification
+├── readme.md                   # This document
+│
+├── checkpoints                 # Trained model weights
+│   ├── best_model.pth          # Our method (FCML) best model
+│   └── neural_fly_daiml_best.pth  # Baseline Neural-Fly (DAIML) model
+│
+├── tsne_checkpoints            # T-SNE evolution snapshot models
+├── dtw_triplets_data           # DTW-Triplet training dataset
+├── processed_data              # Preprocessed flight data (50Hz CSV)
+├── raw_logs                    # Raw PX4 flight logs (ULG + CSV)
+├── eval_results                # Online evaluation data
+├── training_results            # Training curves and intermediate data
+├── figures                     # Generated figures (output directory)
+│
+├── docs                        # Additional documentation
+│   └── online_control_architecture.md
+│
+├── baseline_test               # Native PX4 waypoint mode baselines
+│   └── ...
+│
+└── scripts                     # Core Python and Bash scripts
+    ├── alignment               # Data alignment tools (generate_dtw_triplets.py)
+    ├── evaluation              # Plotting and analysis scripts
+    ├── missions                # Online flight control scripts
+    ├── offline                 # Model training scripts
+    ├── run_evaluations_mission.sh # Automated flight evaluation
+    ├── auto_collect_split.sh   # Automated data collection
+    └── set_wind.sh             # Gazebo wind configuration
+```
+
+### Naming Conventions
+
+| Code Name      | Description                                |
+|----------------|--------------------------------------------|
+| `Ours` / `FCML`| Our proposed method (DTW-Triplet alignment)|
+| `Neural-Fly`   | Original Neural-Fly with DAIML (baseline)  |
+| `Baseline`     | Standard PID controller                    |
+| `INDI`         | Incremental Nonlinear Dynamic Inversion    |
+| `L1`           | L1 Adaptive Control                        |

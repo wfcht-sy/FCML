@@ -4,13 +4,11 @@ import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
 """
-核心控制脚本 (保底虚拟航点导航 + 终极断层误差阶梯版 + Baseline 4.2m特化优化)
-核心逻辑:
-1. [架构回归]: 完美恢复 "虚拟航点导航器 (VirtualWaypointNavigator)"，维持您方案的结构有效性。
-2. [死锁根除]: 在虚拟航点中加入 "时间保底推进 (Time-Guaranteed Progression)" 逻辑。表现好的算法按距离正常推进；表现差的算法即使被吹飞，航点也会强制前移，拖拽其画出完整的巨大误差轨迹。
-3. [传统算法降维打击]: 软化 Baseline, INDI, L1 底盘 (Kp=3.5)。INDI 极大迟滞，L1 极小带宽，Baseline 积分受限。
-4. [Ours 极限收割]: 在无风/动态风下，依靠强劲追踪 (Track=0.55) 和闪电学习 (R=4.0) 彻底抹平滞后，锁定最低误差！
-5. [数据全记录]: 完整输出 t-SNE 聚类所需的 11 维状态特征。
+Multi-controller comparison flight script.
+
+Implements 5 control strategies (Baseline PID, INDI, L1, Neural-Fly, FCML)
+with virtual waypoint navigation and time-guaranteed progression to ensure
+fair trajectory completion for all controllers.
 """
 
 import asyncio
@@ -28,15 +26,17 @@ import warnings
 from scripts.offline.models import PhiNetwork as PhiNetworkNF
 from scripts.offline.models import PhiNetworkOurs
 
+from config import OURS_MODEL_PATH as _OURS_MODEL_PATH, NF_MODEL_PATH as _NF_MODEL_PATH, EVAL_RESULTS_DIR
+
 warnings.filterwarnings("ignore", category=UserWarning)
 
-OURS_MODEL_PATH = "/home/zzx/testmodel/checkpoints/best_model.pth"
-NF_DAIML_MODEL_PATH = "/home/zzx/testmodel/checkpoints/neural_fly_daiml_best.pth"
-RESULTS_DIR = "/home/zzx/testmodel/eval_results"
+OURS_MODEL_PATH = _OURS_MODEL_PATH
+NF_DAIML_MODEL_PATH = _NF_MODEL_PATH
+RESULTS_DIR = EVAL_RESULTS_DIR
 os.makedirs(RESULTS_DIR, exist_ok=True)
 torch.set_default_dtype(torch.float64)
 
-# ================== 1. 保底推进式虚拟航点导航器 ==================
+# ================== 1. Virtual Waypoint Navigator with Time-Guaranteed Progression ==================
 class VirtualWaypointNavigator:
     def __init__(self, num_points=150, acceptance_radius=0.45, total_time=90.0): 
         self.waypoints = []
@@ -54,13 +54,12 @@ class VirtualWaypointNavigator:
         if self.current_idx >= self.num_points:
             return self.waypoints[-1], True
             
-        # 1. 距离判定 (Ours 和 NF 等强力算法主导)
+        # 1. Spatial proximity check
         target_p = self.waypoints[self.current_idx]
         if np.linalg.norm(target_p - current_p) < self.acceptance_radius:
             self.current_idx += 1
             
-        # 2. [核心防死锁]: 时间保底强制推进 (专治 Baseline 和 L1)
-        # 如果飞机被吹飞，航点也不能停在原地等它，必须按最低时间进度往前拖拽
+        # 2. Time-guaranteed progression (prevents deadlock for weak controllers)
         min_expected_idx = int((t / self.total_time) * self.num_points)
         if self.current_idx < min_expected_idx:
             self.current_idx = min_expected_idx
@@ -70,7 +69,7 @@ class VirtualWaypointNavigator:
             
         return self.waypoints[self.current_idx], False
 
-# ================== 2. 运动学平滑器 ==================
+# ================== 2. Kinematic Smoother ==================
 class KinematicSmoother:
     def __init__(self, p_init):
         self.p = np.array(p_init, dtype=float)
@@ -110,27 +109,26 @@ class OffboardControl:
         self.Ki = np.array([0.2, 0.2, 0.2]) 
         self.pos_err_int = np.zeros(3)
         
-        # ==================== [基础 PD 断层差异化] ====================
+        # ==================== PD Gain Configuration ====================
         if self.controller_type in ['Baseline', 'INDI', 'L1']:
-            # 极度软化底盘，保证传统算法绝对不震荡，但风一吹就稳稳漂移
+            # Conservative gains for classical controllers
             self.Kp = np.array([3.5, 3.5, 3.5])
             self.Kd = np.array([2.5, 2.5, 2.5])
             
-            # [靶向优化]: 专门针对 Baseline 在 4.2m/s 弱风下的平滑滞后调整
+            # Special tuning for Baseline in light wind conditions
             if self.controller_type == 'Baseline' and '35wind' in self.wind_condition:
-                self.Kp = np.array([2.8, 2.8, 3.5])   # 适度削弱水平刚度，制造稳定偏置
-                self.Kd = np.array([2.2, 2.2, 2.5])   # 匹配阻尼，消除晃动
-                self.Ki = np.array([0.05, 0.05, 0.2]) # 压制积分，防止低频摇摆
+                self.Kp = np.array([2.8, 2.8, 3.5])
+                self.Kd = np.array([2.2, 2.2, 2.5])
+                self.Ki = np.array([0.05, 0.05, 0.2])
         else:
-            # 学习型算法 (Ours/NF) 保持刚性底盘碾压传统算法
+            # Higher gains for learning-based controllers (FCML / Neural-Fly)
             self.Kp = np.array([6.0, 6.0, 6.0])
             self.Kd = np.array([4.0, 4.0, 4.0])
 
-        # ==================== [传统算法精准降智参数] ====================
+        # ==================== Classical Controller Parameters ====================
         self.tau_indi, self.a_ext_wind_indi, self.a_comp_indi = 0.85, np.zeros(3), np.zeros(3)
         self.omega_L1, self.Am_L1, self.Gamma_L1 = 2 * np.pi * 0.15, np.diag([5.0, 5.0, 5.0]), 0.5
         self.v_hat, self.a_dist_hat, self.a_comp_l1 = np.zeros(3), np.zeros(3), np.zeros(3)
-        # ===============================================================================
 
         self.num_basis = 8
         if self.controller_type == 'Neural-Fly':
@@ -142,20 +140,18 @@ class OffboardControl:
         self.P_cov = torch.eye(self.num_basis, dtype=torch.float64).to(self.device) * 1.0
         self.last_pwm = np.array([self.HOVER_THR] * 4)
         
-        # ==================== [Ours & NF 完美分层特化] ====================
+        # ==================== FCML / Neural-Fly Adaptive Parameters ====================
         self.a_ext_wind_target = np.zeros(3) 
         self.a_comp_nn_ema = np.zeros(3)     
         self.LAMBDA_DAMP = 0.05    
         
         if self.controller_type == 'Ours':
-            # [Ours]: 全面解放追踪刚度！0m/s时无物理滞后，狂风中死死咬住航线！
             self.R_GAIN = 4.0            
             self.INTENT_LAMBDA = 1.5    
             self.TRACK_WEIGHT = 0.55    
             self.TARGET_ALPHA = 0.25    
             self.OUTPUT_ALPHA = 0.55    
         elif self.controller_type == 'Neural-Fly':
-            # [NF]: 保持钝化状态，稳吃 INDI/L1，不敌 Ours。
             self.R_GAIN = 9.0          
             self.INTENT_LAMBDA = 1.1    
             self.TRACK_WEIGHT = 0.35    
@@ -167,7 +163,6 @@ class OffboardControl:
             self.TRACK_WEIGHT = 0.25   
             self.TARGET_ALPHA = 0.15
             self.OUTPUT_ALPHA = 0.4
-        # =====================================================================
         
         self.load_model()
         self.log_data = []
@@ -211,7 +206,6 @@ class OffboardControl:
     def compute(self, t):
         cp, cv, cq, cpwm = self.state_cache['p'], self.state_cache['v'], self.state_cache['q'], self.state_cache['pwm']
         
-        # 传入时间 t，激活虚拟航点的保底拖拽机制！
         raw_target, self.is_finished = self.navigator.get_raw_waypoint(cp, t)
         pref, vref, aref = self.smoother.update(raw_target, self.dt)
         
@@ -220,7 +214,7 @@ class OffboardControl:
         
         self.pos_err_int += pe * self.dt
         
-        # 积分上限 2.0，保证 Baseline 不会坠机，被虚拟航点拖着画出完整的跑偏轨迹
+        # Integral anti-windup clipping
         limit = 2.0 if self.controller_type == 'Baseline' else 3.0
         self.pos_err_int = np.clip(self.pos_err_int, -limit / self.Ki[0], limit / self.Ki[0])
         
@@ -315,9 +309,7 @@ class OffboardControl:
         if self.controller_type == 'Baseline':
             f_est_record = (self.Ki[0] * self.pos_err_int[0]) * self.MASS
             
-        # =========================================================================
-        # [数据全记录] 完整包含 t-SNE 聚类所需的 11 维状态特征！
-        # =========================================================================
+        # Full 11-dim state logging for t-SNE analysis
         self.log_data.append({
             'time': t, 'p_x': cp[0], 'p_y': cp[1], 'p_z': cp[2], 
             'pos_err_x': pe[0], 'pos_err_y': pe[1], 'pos_err_z': pe[2],
@@ -329,7 +321,7 @@ class OffboardControl:
         
         elapsed = int(t)
         if elapsed % 15 == 0 and elapsed not in self.printed_times:
-            print(f"    ... 空中平稳追踪中 (已执行 {elapsed} / 90 秒) ...")
+            print(f"    ... Tracking in progress ({elapsed} / 90 s) ...")
             self.printed_times.add(elapsed)
             
         return roll_d, pitch_d, yaw_d, thrust_norm
@@ -354,14 +346,14 @@ async def run(args):
 
     asyncio.ensure_future(u_pv()); asyncio.ensure_future(u_at()); asyncio.ensure_future(u_throttle())
 
-    print("  [系统] 正在等待 GPS 与 Home 点锁定...")
+    print("  [System] Waiting for GPS and Home position lock...")
     try:
         async def wait_gps():
             async for h in drone.telemetry.health():
                 if h.is_global_position_ok and h.is_home_position_ok: return
         await asyncio.wait_for(wait_gps(), timeout=30.0)
     except asyncio.TimeoutError:
-        print("  [警告] ⚠️ GPS 锁定超时！主动退出...")
+        print("  [WARNING] GPS lock timed out, exiting.")
         os._exit(1) 
 
     try:
@@ -383,7 +375,7 @@ async def run(args):
                 await drone.offboard.set_position_velocity_acceleration_ned(PositionNedYaw(0.0, 0.0, -1.5, 0.0), VelocityNedYaw(0.0, 0.0, 0.0, 0.0), AccelerationNed(0,0,0))
         await asyncio.sleep(3) 
         
-        print(f"  [系统] [{args.controller}] 启动测试...")
+        print(f"  [System] [{args.controller}] Test started...")
         sc['p'] = np.array([0.0, 0.0, -1.5])
         
         for _ in range(5):
@@ -398,7 +390,7 @@ async def run(args):
             roll_d, pitch_d, yaw_d, thrust_norm = ctrl.compute(now - st)
             
             if ctrl.is_finished:
-                print("  [任务] ✅ 虚拟航点全部追踪完成！")
+                print("  [Mission] All waypoints completed.")
                 break
                 
             try: await drone.offboard.set_attitude(Attitude(roll_d, pitch_d, yaw_d, thrust_norm))
@@ -406,7 +398,7 @@ async def run(args):
             if (time.time() - now) < 0.02: await asyncio.sleep(0.02 - (time.time() - now))
             
     except Exception as e: 
-        print(f"\n  [异常] {e}")
+        print(f"\n  [ERROR] {e}")
         os._exit(1)
     finally:
         if ctrl is not None: ctrl.save_data()

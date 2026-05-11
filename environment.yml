@@ -27,15 +27,15 @@ dependencies:
   - charset-normalizer=3.3.2=pyhd3eb1b0_0
   - comm=0.2.1=py39h06a4308_0
   - contourpy=1.2.1=py39hdb19cb5_1
-  - cuda-cudart=12.4.127=h99ab3db_0
-  - cuda-cudart_linux-64=12.4.127=hd681fbe_0
-  - cuda-cupti=12.4.127=h6a678d5_1
-  - cuda-libraries=12.4.1=h06a4308_1
-  - cuda-nvrtc=12.4.127=h99ab3db_1
-  - cuda-nvtx=12.4.127=h6a678d5_1
-  - cuda-opencl=12.4.127=h6a678d5_0
-  - cuda-runtime=12.4.1=hb982923_0
-  - cuda-version=12.4=hbda6634_3
+#  - cuda-cudart=12.4.127=h99ab3db_0
+#  - cuda-cudart_linux-64=12.4.127=hd681fbe_0
+#  - cuda-cupti=12.4.127=h6a678d5_1
+#  - cuda-libraries=12.4.1=h06a4308_1
+#  - cuda-nvrtc=12.4.127=h99ab3db_1
+#  - cuda-nvtx=12.4.127=h6a678d5_1
+#  - cuda-opencl=12.4.127=h6a678d5_0
+#  - cuda-runtime=12.4.1=hb982923_0
+#  - cuda-version=12.4=hbda6634_3
   - cycler=0.11.0=pyhd3eb1b0_0
   - cyrus-sasl=2.1.28=h1110e0f_3
   - dav1d=1.2.1=h5eee18b_0
@@ -211,9 +211,9 @@ dependencies:
   - python-fastjsonschema=2.20.0=py39h06a4308_0
   - python-json-logger=3.2.1=py39h06a4308_0
   - python-tzdata=2025.2=pyhd3eb1b0_0
-  - pytorch=2.5.1=py3.9_cuda12.4_cudnn9.1.0_0
-  - pytorch-cuda=12.4=hc786d27_7
-  - pytorch-mutex=1.0=cuda
+#  - pytorch=2.5.1=py3.9_cuda12.4_cudnn9.1.0_0
+#  - pytorch-cuda=12.4=hc786d27_7
+#  - pytorch-mutex=1.0=cuda
   - pytz=2025.2=py39h06a4308_0
   - pyyaml=6.0.2=py39h5eee18b_0
   - pyzmq=27.1.0=py39hcf8288c_0
@@ -249,9 +249,9 @@ dependencies:
   - tinycss2=1.4.0=py39h06a4308_0
   - tk=8.6.15=h54e0aa7_0
   - tomli=2.2.1=py39h06a4308_0
-  - torchaudio=2.5.1=py39_cu124
-  - torchtriton=3.1.0=py39
-  - torchvision=0.20.1=py39_cu124
+#  - torchaudio=2.5.1=py39_cu124
+#  - torchtriton=3.1.0=py39
+#  - torchvision=0.20.1=py39_cu124
   - tornado=6.5.1=py39h5eee18b_0
   - traitlets=5.14.3=py39h06a4308_0
   - typing-extensions=4.15.0=py39h06a4308_0
@@ -300,18 +300,18 @@ dependencies:
       - frozenlist==1.8.0
       - fsspec==2025.10.0
       - grpcio==1.76.0
-      - lightning-utilities==0.15.2
+#       - lightning-utilities==0.15.2
       - markdown==3.9
       - mavsdk==3.10.2
       - multidict==6.7.1
       - propcache==0.4.1
       - protobuf==6.33.4
-      - pytorch-lightning==2.6.0
+#      - pytorch-lightning==2.6.0
       - sympy==1.13.1
-      - tensorboard==2.20.0
-      - tensorboard-data-server==0.7.2
-      - torchmetrics==1.8.2
+#      - tensorboard==2.20.0
+#      - tensorboard-data-server==0.7.2
+#      - torchmetrics==1.8.2
       - tqdm==4.67.3
       - werkzeug==3.1.7
       - yarl==1.22.0
-prefix: /home/zzx/miniconda3/envs/neural-fly
+

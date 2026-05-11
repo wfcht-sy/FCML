@@ -18,14 +18,16 @@ from scripts.offline.models import PhiNetworkOurs
 from virtual_navigator import VirtualWaypointNavigator
 from kinematic_smoother import KinematicSmoother
 
+from config import OURS_MODEL_PATH as _OURS_MODEL_PATH, EVAL_RESULTS_DIR
+
 warnings.filterwarnings("ignore", category=UserWarning)
 
-OURS_MODEL_PATH = "/home/zzx/testmodel/checkpoints/best_model.pth"
-RESULTS_DIR = "/home/zzx/testmodel/eval_results"
+OURS_MODEL_PATH = _OURS_MODEL_PATH
+RESULTS_DIR = EVAL_RESULTS_DIR
 os.makedirs(RESULTS_DIR, exist_ok=True)
 torch.set_default_dtype(torch.float64)
 
-# ================== 核心在线自适应控制器 ==================
+# ================== Online Adaptive Controller (FCML) ==================
 class OffboardControl:
     def __init__(self, state_cache, wind_condition='0'):
         self.wind_condition = wind_condition
@@ -33,15 +35,15 @@ class OffboardControl:
         self.device = torch.device("cpu")
         self.results_dir = RESULTS_DIR
         
-        # 物理与控制基础参数
+        # Physical and control parameters
         self.dt, self.MASS, self.g, self.HOVER_THR, self.FORCE_SCALE = 0.02, 1.5, 9.8066, 0.70581, 6.0
         self.prev_vel, self.acc_filt, self.EMA_ALPHA = np.zeros(3), np.zeros(3), 0.2
         
-        # 标称底层控制器 (PD) 参数
+        # Nominal PD controller gains
         self.Kp = np.array([6.0, 6.0, 6.0])
         self.Kd = np.array([4.0, 4.0, 4.0])
 
-        # 神经网络与自适应律超参数
+        # Neural network and adaptive law hyperparameters
         self.num_basis = 8
         self.model = PhiNetworkOurs(input_dim=11, basis_dim=self.num_basis).to(self.device)
         self.a_hat = torch.zeros(self.num_basis, 3, dtype=torch.float64).to(self.device)
@@ -98,14 +100,14 @@ class OffboardControl:
     def compute(self, t):
         cp, cv, cq, cpwm = self.state_cache['p'], self.state_cache['v'], self.state_cache['q'], self.state_cache['pwm']
         
-        # 1. 轨迹生成与平滑
+        # 1. Trajectory generation and smoothing
         raw_target, self.is_finished = self.navigator.get_raw_waypoint(cp, t)
         pref, vref, aref = self.smoother.update(raw_target, self.dt)
         
         pe = pref - cp
         ve = vref - cv
         
-        # 2. 气动力预测与真实力估计
+        # 2. Wind force estimation from kinematics
         ac_meas = self.get_acc(cv)
         pwm_mean = np.clip(np.mean(cpwm), 0.0, 1.0)
         thrust_mag = (pwm_mean / self.HOVER_THR) * self.MASS * self.g
@@ -117,10 +119,10 @@ class OffboardControl:
         a_thrust_kinematic = t_world / self.MASS + np.array([0, 0, self.g])
         a_ext_wind = ac_meas - a_thrust_kinematic
         
-        # 3. 标称反馈控制律 (PD)
+        # 3. Nominal PD feedback control
         a_pid = self.Kp * pe + self.Kd * ve
             
-        # 4. 神经网络自适应前馈补偿
+        # 4. Neural network adaptive feedforward compensation
         real_pwm = self.state_cache['real_pwm']
         pwm_arr = np.array(self.last_pwm)
         pwm_norm = pwm_arr if np.min(pwm_arr) < -0.9 else pwm_arr * 2.0 - 1.0
@@ -141,7 +143,7 @@ class OffboardControl:
         term_pred = torch.mm(self.P_cov, phi_t) * (1.0 / self.R_GAIN) * pred_error
         term_track = torch.mm(self.P_cov, phi_t) * s_tensor * self.TRACK_WEIGHT 
         
-        # 特征归一化与阻尼泄露约束
+        # Feature normalization and leakage damping
         phi_norm_sq = torch.sum(phi**2).item()
         norm_factor = 1.0 / (1.0 + 0.05 * phi_norm_sq)
         adaptive_rate = (term_pred + term_track) * norm_factor - self.LAMBDA_DAMP * self.a_hat
@@ -149,7 +151,7 @@ class OffboardControl:
         if pwm_mean > 0.85: adaptive_rate = torch.zeros_like(adaptive_rate)
         self.a_hat = self.a_hat + adaptive_rate * self.dt
         
-        # 参数投影算子与输出截断
+        # Parameter projection and output clipping
         norm_a_hat = torch.norm(self.a_hat).item()
         if norm_a_hat > 30.0: 
             self.a_hat = self.a_hat * (30.0 / norm_a_hat)
@@ -158,17 +160,17 @@ class OffboardControl:
         acc_norm = np.linalg.norm(a_comp_raw)
         if acc_norm > 15.0: a_comp_raw = a_comp_raw * (15.0 / acc_norm)
 
-        # 一阶低通滤波
+        # First-order low-pass filter
         self.a_comp_nn_ema = (1.0 - self.OUTPUT_ALPHA) * self.a_comp_nn_ema + self.OUTPUT_ALPHA * a_comp_raw
         a_comp = self.a_comp_nn_ema
 
-        # 5. 总加速度指令与姿态解算
+        # 5. Total acceleration command and attitude conversion
         a_des = a_pid + aref - a_comp  
         roll_d, pitch_d, yaw_d, thrust_norm = self.get_attitude_thrust(a_des, yaw_des=0.0)
         
         self.state_cache['pwm'] = np.array([thrust_norm]*4)
         
-        # 数据记录 (仅保留必要特征)
+        # Data logging
         self.log_data.append({
             'time': t, 'p_x': cp[0], 'p_y': cp[1], 'p_z': cp[2], 
             'pos_err_x': pe[0], 'pos_err_y': pe[1], 'pos_err_z': pe[2],
@@ -180,7 +182,7 @@ class OffboardControl:
         
         elapsed = int(t)
         if elapsed % 15 == 0 and elapsed not in self.printed_times:
-            print(f"    ... 追踪执行中 (已完成 {elapsed} / 90 秒) ...")
+            print(f"    ... Tracking in progress ({elapsed} / 90 s) ...")
             self.printed_times.add(elapsed)
             
         return roll_d, pitch_d, yaw_d, thrust_norm
@@ -205,14 +207,14 @@ async def run(args):
 
     asyncio.ensure_future(u_pv()); asyncio.ensure_future(u_at()); asyncio.ensure_future(u_throttle())
 
-    print("  [系统] 正在等待 GPS 与 Home 点锁定...")
+    print("  [System] Waiting for GPS and Home position lock...")
     try:
         async def wait_gps():
             async for h in drone.telemetry.health():
                 if h.is_global_position_ok and h.is_home_position_ok: return
         await asyncio.wait_for(wait_gps(), timeout=30.0)
     except asyncio.TimeoutError:
-        print("  [警告] GPS 锁定超时，系统退出。")
+        print("  [WARNING] GPS lock timed out, exiting.")
         os._exit(1) 
 
     try:
@@ -234,7 +236,7 @@ async def run(args):
                 await drone.offboard.set_position_velocity_acceleration_ned(PositionNedYaw(0.0, 0.0, -1.5, 0.0), VelocityNedYaw(0.0, 0.0, 0.0, 0.0), AccelerationNed(0,0,0))
         await asyncio.sleep(3) 
         
-        print(f"  [系统] 自适应控制算法测试启动...")
+        print(f"  [System] Adaptive control test started...")
         sc['p'] = np.array([0.0, 0.0, -1.5])
         
         for _ in range(5):
@@ -249,7 +251,7 @@ async def run(args):
             roll_d, pitch_d, yaw_d, thrust_norm = ctrl.compute(now - st)
             
             if ctrl.is_finished:
-                print("  [任务] 虚拟航点序列追踪完成。")
+                print("  [Mission] Waypoint sequence completed.")
                 break
                 
             try: await drone.offboard.set_attitude(Attitude(roll_d, pitch_d, yaw_d, thrust_norm))
@@ -257,7 +259,7 @@ async def run(args):
             if (time.time() - now) < 0.02: await asyncio.sleep(0.02 - (time.time() - now))
             
     except Exception as e: 
-        print(f"\n  [异常] 运行时错误: {e}")
+        print(f"\n  [ERROR] Runtime exception: {e}")
         os._exit(1)
     finally:
         if ctrl is not None: ctrl.save_data()
