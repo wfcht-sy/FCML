@@ -32,8 +32,8 @@ We provide a bash script to setup the project dependencies, conda environment, a
 
 First, retrieve the repository and pull all LFS files:
 ```bash
-git clone <repository_url>
-cd testmodel
+git clone https://github.com/wfcht-sy/FCML.git
+cd FCML
 git lfs pull
 ```
 
@@ -56,7 +56,7 @@ If the auto installation was interrupted, or a manual configuration is preferred
    Install Miniconda if you don't have it, then:
    ```bash
    conda env create -f environment.yml
-   conda activate neural-fly
+   conda activate fcml
    ```
 
 2. **Install PyTorch**
@@ -95,7 +95,7 @@ If the auto installation was interrupted, or a manual configuration is preferred
 1. **Reproduce Training (Fig 0: Convergence Curves)**
    Run ablation studies to train models and extract convergence data:
    ```bash
-   conda activate neural-fly
+   conda activate fcml
    python scripts/offline/run_ablations.py
    python scripts/evaluation/plot_training_curve.py
    ```
@@ -144,7 +144,7 @@ python scripts/alignment/generate_dtw_triplets.py
 ## Directory Structure
 
 ```
-testmodel
+FCML
 ├── config.py                   # Centralized path configuration
 ├── setup.sh                    # One-line quick setup script
 ├── environment.yml             # Conda environment specification
