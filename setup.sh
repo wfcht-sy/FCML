@@ -15,14 +15,14 @@
 # Environment variables (override defaults):
 #   PROJECT_DIR (Default: $HOME/testmodel)
 #   CONDA_HOME  (Default: $HOME/miniconda3)
-#   ENV_NAME    (Default: neural-fly      extracted from environment.yml name:)
+#   ENV_NAME    (Default: fcml      extracted from environment.yml name:)
 #   USE_MAMBA   (Default: 1   Set to 0 to use conda solver)
 # =============================================================================
 set -euo pipefail
 
 PROJECT_DIR="${PROJECT_DIR:-$HOME/testmodel}"
 CONDA_HOME="${CONDA_HOME:-$HOME/miniconda3}"
-ENV_NAME="${ENV_NAME:-neural-fly}"
+ENV_NAME="${ENV_NAME:-fcml}"
 USE_MAMBA="${USE_MAMBA:-1}"
 LEGACY_LINK="${LEGACY_LINK:-}"  # Set via env var if legacy symlink is needed
 
