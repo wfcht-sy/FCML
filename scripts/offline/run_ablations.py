@@ -27,7 +27,7 @@ def run_training_and_extract(lambda_val, scheme_name):
         shutil.copy(latest_csv, dest_csv)
         print(f"\n[{scheme_name}] Training curve extracted: {dest_csv}")
         
-        if scheme_name == "ours":
+        if scheme_name == "fcml":
             os.makedirs(CHECKPOINTS_DIR, exist_ok=True)
             shutil.copy(os.path.join(out_dir, "best_model.pth"), os.path.join(CHECKPOINTS_DIR, "best_model.pth"))
 
@@ -35,5 +35,5 @@ if __name__ == "__main__":
     # 1. Original Neural-Fly (pure MSE, no triplet)
     run_training_and_extract(0.0, "original")
     # 2. FCML (with decaying triplet loss)
-    run_training_and_extract(1.0, "ours")
+    run_training_and_extract(1.0, "fcml")
     print("\nAll ablation experiments completed! Run plot_training_curve.py to view the comparison.")

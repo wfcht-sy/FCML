@@ -12,7 +12,7 @@ from config import EVAL_RESULTS_DIR, FIGURES_DIR
 
 warnings.filterwarnings("ignore")
 
-CONTROLLERS = ['Baseline', 'INDI', 'L1', 'Neural-Fly', 'Ours']
+CONTROLLERS = ['Baseline', 'INDI', 'L1', 'Neural-Fly',  'FCML']
 RESULTS_DIR = EVAL_RESULTS_DIR
 os.makedirs(FIGURES_DIR, exist_ok=True)
 
@@ -30,10 +30,10 @@ LABEL_MAP = {
     'INDI': 'INDI',
     'L1': 'L1 Adaptive',
     'Neural-Fly': 'Neural-Fly (DAIML)',
-    'Ours': 'FCML (Ours)'
+     'FCML': 'FCML (FCML)'
 }
 
-COLORS = {'Baseline': '#7f7f7f', 'INDI': '#1f77b4', 'L1': '#9467bd', 'Neural-Fly': '#ff7f0e', 'Ours': '#2ca02c'}
+COLORS = {'Baseline': '#7f7f7f', 'INDI': '#1f77b4', 'L1': '#9467bd', 'Neural-Fly': '#ff7f0e',  'FCML': '#2ca02c'}
 
 plt.rcParams['font.family'] = 'DejaVu Sans'
 plt.rcParams['axes.unicode_minus'] = False

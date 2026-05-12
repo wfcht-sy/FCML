@@ -1,4 +1,4 @@
-name: fcml
+name: neural-fly
 channels:
   - defaults
   - pytorch

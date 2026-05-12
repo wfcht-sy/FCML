@@ -16,13 +16,13 @@ import os
 import warnings
 
 from scripts.offline.models import PhiNetwork as PhiNetworkNF
-from scripts.offline.models import PhiNetworkOurs
+from scripts.offline.models import PhiNetworkFCML
 
-from config import OURS_MODEL_PATH as _OURS_MODEL_PATH, NF_MODEL_PATH as _NF_MODEL_PATH, EVAL_RESULTS_DIR
+from config import FCML_MODEL_PATH as _FCML_MODEL_PATH, NF_MODEL_PATH as _NF_MODEL_PATH, EVAL_RESULTS_DIR
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
-OURS_MODEL_PATH = _OURS_MODEL_PATH
+FCML_MODEL_PATH = _FCML_MODEL_PATH
 NF_DAIML_MODEL_PATH = _NF_MODEL_PATH
 RESULTS_DIR = EVAL_RESULTS_DIR
 os.makedirs(RESULTS_DIR, exist_ok=True)
@@ -88,7 +88,7 @@ class KinematicSmoother:
 # =========================================================================
 
 class OffboardControl:
-    def __init__(self, state_cache, controller_type='Ours', wind_condition='0'):
+    def __init__(self, state_cache, controller_type='FCML', wind_condition='0'):
         self.controller_type = controller_type
         self.wind_condition = wind_condition
         self.state_cache = state_cache
@@ -126,7 +126,7 @@ class OffboardControl:
         if self.controller_type == 'Neural-Fly':
             self.model = PhiNetworkNF(input_dim=11, basis_dim=self.num_basis).to(self.device)
         else:
-            self.model = PhiNetworkOurs(input_dim=11, basis_dim=self.num_basis).to(self.device)
+            self.model = PhiNetworkFCML(input_dim=11, basis_dim=self.num_basis).to(self.device)
             
         self.a_hat = torch.zeros(self.num_basis, 3, dtype=torch.float64).to(self.device)
         self.P_cov = torch.eye(self.num_basis, dtype=torch.float64).to(self.device) * 1.0
@@ -137,7 +137,7 @@ class OffboardControl:
         self.a_comp_nn_ema = np.zeros(3)     
         self.LAMBDA_DAMP = 0.05    
         
-        if self.controller_type == 'Ours':
+        if self.controller_type == 'FCML':
             self.R_GAIN = 4.0            
             self.INTENT_LAMBDA = 1.5    
             self.TRACK_WEIGHT = 0.55    
@@ -165,8 +165,8 @@ class OffboardControl:
         self.is_finished = False
 
     def load_model(self):
-        if self.controller_type not in ['Ours', 'Neural-Fly']: return
-        target_path = NF_DAIML_MODEL_PATH if self.controller_type == 'Neural-Fly' else OURS_MODEL_PATH
+        if self.controller_type not in ['FCML', 'Neural-Fly']: return
+        target_path = NF_DAIML_MODEL_PATH if self.controller_type == 'Neural-Fly' else FCML_MODEL_PATH
         if os.path.exists(target_path):
             ckpt = torch.load(target_path, map_location=self.device, weights_only=True)
             self.model.load_state_dict(ckpt['model_state_dict'] if 'model_state_dict' in ckpt else ckpt)
@@ -250,7 +250,7 @@ class OffboardControl:
                 self.a_comp_l1 = (1 - alpha_L1) * self.a_comp_l1 + alpha_L1 * self.a_dist_hat
                 a_comp = self.a_comp_l1
                 
-            elif self.controller_type in ['Ours', 'Neural-Fly']:
+            elif self.controller_type in ['FCML', 'Neural-Fly']:
                 real_pwm = self.state_cache['real_pwm']
                 pwm_arr = np.array(self.last_pwm)
                 pwm_norm = pwm_arr if np.min(pwm_arr) < -0.9 else pwm_arr * 2.0 - 1.0

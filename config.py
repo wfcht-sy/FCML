@@ -30,7 +30,7 @@ TSNE_RESULTS_DIR = os.path.join(PROJECT_ROOT, "tsne_results")
 # Commonly referenced files
 # ---------------------------------------------------------------------------
 DTW_CSV          = os.path.join(DTW_DATA_DIR, "dtw_triplet_combined_all.csv")
-OURS_MODEL_PATH  = os.path.join(CHECKPOINTS_DIR, "best_model.pth")
+FCML_MODEL_PATH  = os.path.join(CHECKPOINTS_DIR, "best_model.pth")
 NF_MODEL_PATH    = os.path.join(CHECKPOINTS_DIR, "neural_fly_daiml_best.pth")
 
 # ---------------------------------------------------------------------------

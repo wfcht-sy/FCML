@@ -17,13 +17,13 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-from scripts.offline.models import PhiNetworkOurs, PhiNetwork as PhiNetworkNF
+from scripts.offline.models import PhiNetworkFCML, PhiNetwork as PhiNetworkNF
 
 # ================= Configuration =================
 MODEL_PATHS = {
-    "Ours (Epoch 0)": os.path.join(TSNE_CKPT_DIR, "tsne_model_epoch_0.pth"),
-    "Ours (Epoch Mid)": os.path.join(TSNE_CKPT_DIR, "tsne_model_epoch_mid.pth"),
-    "Ours (Final)": os.path.join(TSNE_CKPT_DIR, "best_model.pth"),
+    "FCML (Epoch 0)": os.path.join(TSNE_CKPT_DIR, "tsne_model_epoch_0.pth"),
+    "FCML (Epoch Mid)": os.path.join(TSNE_CKPT_DIR, "tsne_model_epoch_mid.pth"),
+    "FCML (Final)": os.path.join(TSNE_CKPT_DIR, "best_model.pth"),
     "Neural-Fly (Final)": os.path.join(CHECKPOINTS_DIR, "neural_fly_daiml_best.pth")
 }
 
@@ -125,7 +125,7 @@ def main():
         if "Neural-Fly" in model_name:
             model = PhiNetworkNF(input_dim=11, basis_dim=8)
         else:
-            model = PhiNetworkOurs(input_dim=11, basis_dim=8)
+            model = PhiNetworkFCML(input_dim=11, basis_dim=8)
             
         if os.path.exists(pth_path):
             ckpt = torch.load(pth_path, map_location='cpu', weights_only=True)

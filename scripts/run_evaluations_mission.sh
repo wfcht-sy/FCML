@@ -24,7 +24,7 @@ declare -a test_winds=(
 )
 
 # 5 controllers under comparison
-CONTROLLERS=("Baseline" "INDI" "L1" "Neural-Fly" "Ours")
+CONTROLLERS=("Baseline" "INDI" "L1" "Neural-Fly" "FCML")
 
 echo "======================================================"
 echo "Starting Virtual Mission evaluation for 5 controllers"

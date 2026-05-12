@@ -17,10 +17,10 @@ TRAIN_DIR = TRAINING_DIR
 os.makedirs(FIGURES_DIR, exist_ok=True)
 
 def plot_training_curves():
-    csv_ours = os.path.join(TRAIN_DIR, "curve_ours.csv")
+    csv_fcml = os.path.join(TRAIN_DIR, "curve_fcml.csv")
     csv_orig = os.path.join(TRAIN_DIR, "curve_original.csv")
 
-    if not os.path.exists(csv_ours) or not os.path.exists(csv_orig):
+    if not os.path.exists(csv_fcml) or not os.path.exists(csv_orig):
         print(f"ERROR: Training CSV data not found.")
         print(f"Please run first: python scripts/offline/run_ablations.py")
         return
@@ -30,7 +30,7 @@ def plot_training_curves():
     # ================= 2. Data Cleaning =================
     # CSVLogger records at both step and epoch level. val_mse only exists
     # at epoch boundaries, so dropna extracts clean epoch-level curves.
-    df_ours = pd.read_csv(csv_ours).dropna(subset=['val_mse'])
+    df_fcml = pd.read_csv(csv_fcml).dropna(subset=['val_mse'])
     df_orig = pd.read_csv(csv_orig).dropna(subset=['val_mse'])
 
     # ================= 3. Plotting =================
@@ -45,7 +45,7 @@ def plot_training_curves():
             label='Neural-Fly (DAIML)')
     
     # Our method (FCML) - red solid line
-    ax.plot(df_ours['epoch'], df_ours['val_mse'], 
+    ax.plot(df_fcml['epoch'], df_fcml['val_mse'], 
             color='#d62728', linestyle='-', linewidth=2.5, 
             label='FCML (DTW-Triplet Alignment)')
 

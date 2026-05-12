@@ -20,9 +20,9 @@ class PhiNetwork(nn.Module):
         return self.net(x)
 
 # ================== Architecture 2: FCML Network (DTW-Triplet) ==================
-class PhiNetworkOurs(nn.Module):
+class PhiNetworkFCML(nn.Module):
     def __init__(self, input_dim=11, basis_dim=8):
-        super(PhiNetworkOurs, self).__init__()
+        super(PhiNetworkFCML, self).__init__()
         self.fc1 = nn.Linear(input_dim, 50)
         self.fc2 = nn.Linear(50, 60)
         self.fc3 = nn.Linear(60, 50)

@@ -17,12 +17,12 @@ import warnings
 
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-from config import OURS_MODEL_PATH as _OURS_MODEL_PATH, EVAL_RESULTS_DIR, FIGURES_DIR
+from config import FCML_MODEL_PATH as _FCML_MODEL_PATH, EVAL_RESULTS_DIR, FIGURES_DIR
 
 warnings.filterwarnings("ignore", category=UserWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
-OURS_MODEL_PATH = _OURS_MODEL_PATH
+FCML_MODEL_PATH = _FCML_MODEL_PATH
 RESULTS_DIR = EVAL_RESULTS_DIR
 os.makedirs(FIGURES_DIR, exist_ok=True)
 
@@ -45,9 +45,9 @@ class PhiNetwork(nn.Module):
         return torch.cat([out, bias], dim=-1)
 
 CSV_FILES = {
-    '0 m/s (Calm)': os.path.join(RESULTS_DIR, 'eval_data_Ours_online_test_nowind.csv'),
-    '8.5 m/s (Gust)': os.path.join(RESULTS_DIR, 'eval_data_Ours_online_test_70p20sint.csv'),
-    '12.1 m/s (Extreme)': os.path.join(RESULTS_DIR, 'eval_data_Ours_online_test_100wind.csv')
+    '0 m/s (Calm)': os.path.join(RESULTS_DIR, 'eval_data_FCML_online_test_nowind.csv'),
+    '8.5 m/s (Gust)': os.path.join(RESULTS_DIR, 'eval_data_FCML_online_test_70p20sint.csv'),
+    '12.1 m/s (Extreme)': os.path.join(RESULTS_DIR, 'eval_data_FCML_online_test_100wind.csv')
 }
 
 def euler_from_quaternion(w, x, y, z):
@@ -64,7 +64,7 @@ def euler_from_quaternion(w, x, y, z):
 def run():
     model = PhiNetwork()
     try:
-        model.load_state_dict(torch.load(OURS_MODEL_PATH, map_location='cpu', weights_only=True)['model_state_dict'])
+        model.load_state_dict(torch.load(FCML_MODEL_PATH, map_location='cpu', weights_only=True)['model_state_dict'])
         model.eval()
     except Exception as e: 
         print(f"ERROR: Failed to load model: {e}"); return
