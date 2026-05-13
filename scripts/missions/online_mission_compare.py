@@ -278,8 +278,15 @@ class OffboardControl:
                 
                 adaptive_rate = (term_pred + term_track) * norm_factor - self.LAMBDA_DAMP * self.a_hat
                 
-                if pwm_mean > 0.85: adaptive_rate = torch.zeros_like(adaptive_rate)
+                # Covariance matrix P update (Equation 9)
+                P_dot = - torch.mm(self.P_cov, torch.mm(phi_t, torch.mm(phi, self.P_cov))) * (1.0 / self.R_GAIN) * norm_factor
+                
+                if pwm_mean > 0.85: 
+                    adaptive_rate = torch.zeros_like(adaptive_rate)
+                    P_dot = torch.zeros_like(P_dot)
+                    
                 self.a_hat = self.a_hat + adaptive_rate * self.dt
+                self.P_cov = self.P_cov + P_dot * self.dt
                 
                 norm_a_hat = torch.norm(self.a_hat).item()
                 if norm_a_hat > 30.0: 
