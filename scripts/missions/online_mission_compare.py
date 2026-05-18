@@ -18,8 +18,10 @@ from scripts.offline.models import PhiNetwork, PhiNetworkFCML
 from scripts.missions.virtual_navigator import VirtualWaypointNavigator
 from scripts.missions.kinematic_smoother import KinematicSmoother
 
-from config import FCML_MODEL_PATH, NF_MODEL_PATH, EVAL_RESULTS_DIR
+from config import FCML_MODEL_PATH, NF_MODEL_PATH, EVAL_RESULTS_DIR, CHECKPOINTS_DIR
 
+# 纯 MSE 模型权重位置（由一键评测脚本 run_notriplet_eval.sh 复制过来）
+NOTRIPLET_MODEL_PATH = os.path.join(CHECKPOINTS_DIR, "fcml_notriplet.pth")
 warnings.filterwarnings("ignore", category=UserWarning)
 torch.set_default_dtype(torch.float64)
 
@@ -264,7 +266,7 @@ class LearningController(BaseOffboardControl):
         self.LAMBDA_DAMP = 0.05
 
         # [Key 7] Per-controller hyperparameters (testmodel1 design for performance hierarchy)
-        if controller_type == 'FCML':
+        if controller_type in ('FCML', 'FCML_NoTriplet'):
             self.R_GAIN = 4.0
             self.INTENT_LAMBDA = 1.5
             self.TRACK_WEIGHT = 0.55
@@ -332,12 +334,15 @@ class LearningController(BaseOffboardControl):
         return a_pid, self.a_comp_nn_ema
 
 
-def get_controller(controller_type, state_cache, wind_condition):
+def get_controller(controller_type, state_cache, wind_condition, model_path_override=None):
     if controller_type == 'Baseline': return BaselineController(state_cache, wind_condition)
     elif controller_type == 'INDI': return INDIController(state_cache, wind_condition)
     elif controller_type == 'L1': return L1Controller(state_cache, wind_condition)
     elif controller_type == 'Neural-Fly': return LearningController(state_cache, 'Neural-Fly', wind_condition, NF_MODEL_PATH)
     elif controller_type == 'FCML': return LearningController(state_cache, 'FCML', wind_condition, FCML_MODEL_PATH)
+    elif controller_type == 'FCML_NoTriplet':
+        path = model_path_override or NOTRIPLET_MODEL_PATH
+        return LearningController(state_cache, 'FCML_NoTriplet', wind_condition, path)
     else: raise ValueError(f"Unknown controller: {controller_type}")
 
 

@@ -67,7 +67,7 @@ LABELS = {
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _find_log(controller: str, wind_tag: str) -> str | None:
+def _find_log(controller: str, wind_tag: str):
     """Return path to the eval CSV for (controller, wind_tag), or None."""
     pattern = os.path.join(
         EVAL_RESULTS_DIR,

@@ -75,11 +75,12 @@ bash scripts/extract_logs.sh
 
 ### Quick Start (Evaluations & Training)
 
-1. **Reproduce Training (Fig 0: Convergence Curves)**
+1. **Reproduce Offline Training & Loss Ablation (Fig 0: Convergence Curves)**
+   Training the unified Phi_Net architecture across different loss functions (Baseline DAIML, MSE-only, and DTW-Triplet):
    ```bash
    conda activate fcml
-   python scripts/offline/run_ablations.py
-   python scripts/evaluation/plot_training_curve.py
+   python scripts/offline/run_backbone_ablation.py
+   python scripts/evaluation/plot_backbone_ablation.py
    ```
 
 2. **Backbone Architecture Ablation (New)**
@@ -104,7 +105,15 @@ bash scripts/extract_logs.sh
    bash scripts/run_evaluations_mission.sh
    ```
 
-4. **Feature Clustering Analysis (Fig 4-5)**
+4. **Online Flight Ablation: DTW-Triplet vs MSE-only (Loss Validation)**
+   Compares tracking RMSE of the full FCML against its MSE-only counterpart in real-time simulation:
+   ```bash
+   conda activate fcml
+   bash run_notriplet_eval.sh
+   python scripts/evaluation/compare_online_triplet_vs_mse.py
+   ```
+
+5. **Feature Clustering Analysis (Fig 4-5)**
    ```bash
    conda activate fcml
    python scripts/evaluation/visualize_feature_clusters.py
@@ -142,9 +151,10 @@ FCML
 
 ### Naming Conventions
 
-| Code Name      | Description                                |
-|----------------|--------------------------------------------|
-| `FCML`         | FCML proposed method (DTW-Triplet alignment)|
-| `Neural-Fly`   | Original Neural-Fly with DAIML (baseline)  |
-| `Baseline`     | Standard PID controller                    |
-| `INDI`         | Incremental Nonlinear Dynamic Inversion    |
+| Code Name        | Description                                |
+|------------------|--------------------------------------------|
+| `FCML`           | FCML proposed method (DTW-Triplet alignment)|
+| `FCML_NoTriplet` | FCML backbone trained with MSE loss only   |
+| `Neural-Fly`     | Original Neural-Fly with DAIML (baseline)  |
+| `Baseline`       | Standard PID controller                    |
+| `INDI`           | Incremental Nonlinear Dynamic Inversion    |
