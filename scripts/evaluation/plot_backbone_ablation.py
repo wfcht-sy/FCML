@@ -128,11 +128,20 @@ def plot_backbone_ablation():
     x = np.arange(len(labels))
     bars = ax_bar.bar(x, values, color=colors, width=0.55, edgecolor="black", linewidth=0.8)
 
-    for bar, val in zip(bars, values):
+    # Highlight our proposed method with a thicker border
+    proposed_idx = next((i for i, g in enumerate(GROUPS) if g["key"] == "ours_full" and g["key"] in curves), None)
+    if proposed_idx is not None:
+        bars[proposed_idx].set_edgecolor("#d62728")
+        bars[proposed_idx].set_linewidth(2.5)
+
+    for i, (bar, val) in enumerate(zip(bars, values)):
+        label_text = f"{val:.5f}"
+        if proposed_idx is not None and i == proposed_idx:
+            label_text += " †"
         ax_bar.text(
             bar.get_x() + bar.get_width() / 2,
             bar.get_height() * 1.03,
-            f"{val:.5f}",
+            label_text,
             ha="center", va="bottom", fontsize=9, fontweight="bold"
         )
 
@@ -142,13 +151,23 @@ def plot_backbone_ablation():
     ax_bar.set_title("Best Val MSE per Group", fontsize=13)
     ax_bar.yaxis.set_major_formatter(ticker.FormatStrFormatter("%.5f"))
     ax_bar.grid(True, axis="y", ls="--", alpha=0.5)
+    # Footnote: explain offline vs online trade-off
+    ax_bar.annotate(
+        "† Our proposed method. DTW-Triplet trades a small offline MSE\n"
+        "  for domain-invariant features that improve online adaptation.",
+        xy=(0.01, 0.01), xycoords="axes fraction",
+        fontsize=7.5, color="#555555",
+        verticalalignment="bottom"
+    )
 
     plt.tight_layout()
     out_path = os.path.join(FIGURES_DIR, "fig_backbone_ablation.png")
     plt.savefig(out_path, dpi=300, bbox_inches="tight")
     print(f"\n  Figure saved: {out_path}")
 
-    # ── Print summary table ────────────────────────────────────────────────
+    # ── Print summary table ──────────────────────────────────────────
+    all_vals = {g["key"]: curves[g["key"]]["val_mse"].min() for g in GROUPS if g["key"] in curves}
+    best_key = min(all_vals, key=all_vals.get) if all_vals else None
     print("\n  ┌─────────────────────────────┬──────────────┐")
     print("  │ Group                       │ Best Val MSE │")
     print("  ├─────────────────────────────┼──────────────┤")
@@ -157,9 +176,17 @@ def plot_backbone_ablation():
             print(f"  │ {g['key']:<27s} │   MISSING    │")
             continue
         best = curves[g["key"]]["val_mse"].min()
-        marker = " ★" if g["key"] == "ours_full" else "  "
-        print(f"  │ {g['label'].split(chr(10))[0]:<27s} │  {best:.6f}{marker}│")
+        marker = ""
+        if g["key"] == best_key:
+            marker = " ★"  # lowest offline MSE
+        if g["key"] == "ours_full":
+            marker += "†"  # our proposed method
+        marker = (marker + "  ")[:3]  # fixed width
+        print(f"  │ {g['label'].split(chr(10))[0]:<27s} │  {best:.6f} {marker}│")
     print("  └─────────────────────────────┴──────────────┘")
+    print("  ★ = lowest offline val_mse   † = our proposed method")
+    print("  Note: DTW-Triplet trades small offline MSE for domain-invariant")
+    print("        features; online tracking performance is the primary metric.")
 
 
 if __name__ == "__main__":
