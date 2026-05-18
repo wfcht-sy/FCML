@@ -82,7 +82,15 @@ bash scripts/extract_logs.sh
    python scripts/evaluation/plot_training_curve.py
    ```
 
-2. **Generate T-SNE Evolution (T-SNE Feature Visualization)**
+2. **Backbone Architecture Ablation (New)**
+   Runs a 4-group ablation study to validate the 4-layer network and Triplet Loss design against the Neural-Fly baseline:
+   ```bash
+   conda activate fcml
+   python scripts/offline/run_backbone_ablation.py
+   python scripts/evaluation/plot_backbone_ablation.py
+   ```
+
+3. **Generate T-SNE Evolution (T-SNE Feature Visualization)**
    ```bash
    conda activate fcml
    python scripts/offline/train_offline_tsne.py
@@ -102,13 +110,18 @@ bash scripts/extract_logs.sh
    python scripts/evaluation/visualize_feature_clusters.py
    ```
 
-5. **Ki Parameter Sweep (Control Parameter Analysis)**
+6. **Ki Parameter Sweep (Control Parameter Analysis)**
    Reads simulation metrics to assess optimal integral gain:
    ```bash
    conda activate fcml
    python scripts/evaluation/simulate_Ki_sweep.py
    python scripts/evaluation/plot_Ki_sweep.py
    ```
+
+## Code Refactoring & Improvements
+1. **Object-Oriented Controllers**: `online_mission_compare.py` uses a clean `BaseOffboardControl` inheritance model, grouping parameters for Baseline, INDI, L1, and Learning controllers independently.
+2. **Component Extraction**: `VirtualWaypointNavigator` and `KinematicSmoother` have been modularized into separate files for better code reuse.
+3. **Ablation-Driven Architecture Justification**: Instead of simply unifying the FCML model with Neural-Fly, we prove our 4-layer architectural superiority via the isolated `run_backbone_ablation.py` suite.
 
 ## Directory Structure
 
