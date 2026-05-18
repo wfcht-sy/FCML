@@ -1,28 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Backbone Ablation Experiment Runner (fully isolated from the main training pipeline).
+Loss Function Ablation Experiment Runner (fully isolated from the main training pipeline).
 
-Four experimental groups:
-  [A] nf_daiml         -> PhiNetwork (2-layer, 64 units, SN)  + DAIML adversarial   [NF baseline]
-  [B] ours_no_triplet  -> PhiNetworkFCML (4-layer)            + pure MSE (lambda=0)  [ablate triplet]
-  [C] ours_nf_backbone -> PhiNetwork (2-layer, 64 units, SN)  + DTW-Triplet          [ablate backbone]
-  [D] ours_full        -> PhiNetworkFCML (4-layer)            + DTW-Triplet          [full method]
+All groups share the SAME backbone: official Neural-Fly Phi_Net architecture
+(ref: aerorobotics/neural-fly/mlmodel.py), implemented as PhiNetworkFCML.
+The ablation studies the TRAINING PARADIGM (loss function) only.
+
+Three experimental groups:
+  [A] nf_daiml        -> Official Phi_Net + DAIML adversarial training  [NF baseline]
+  [B] ours_no_triplet -> Official Phi_Net + pure MSE (lambda_triplet=0)  [ablate triplet]
+  [D] ours_full       -> Official Phi_Net + DTW-Triplet loss             [full FCML]
 
 Ablation chains:
-  Backbone  : [D] vs [C]  -> proves 4-layer + constant-bias design is better for DTW-Triplet
-  Loss      : [D] vs [B]  -> proves DTW-Triplet loss improves generalisation
-  vs NF     : [D] vs [A]  -> full FCML vs Neural-Fly baseline
+  Loss function    : [D] vs [B]  -> proves DTW-Triplet improves over MSE-only
+  Training paradigm: [D] vs [A]  -> proves DTW-Triplet outperforms DAIML
 
 Output (fully isolated from main training):
   training_results/backbone_ablation/
     run_nf_daiml/              (training artefacts)
     run_ours_no_triplet/
-    run_ours_nf_backbone/
     run_ours_full/
     curve_nf_daiml.csv         (plot data)
     curve_ours_no_triplet.csv
-    curve_ours_nf_backbone.csv
     curve_ours_full.csv
 
 Files that are never modified by this script:
@@ -49,8 +49,8 @@ ABLATION_DIR = os.path.join(TRAINING_DIR, "backbone_ablation")
 os.makedirs(ABLATION_DIR, exist_ok=True)
 
 
-def run_triplet_group(scheme_name, lambda_val, backbone):
-    """Train with DTW-Triplet loss (groups B, C, D). Output goes only to ABLATION_DIR."""
+def run_triplet_group(scheme_name, lambda_val):
+    """Train with DTW-Triplet loss (groups B, D). Output goes only to ABLATION_DIR."""
     curve_path = os.path.join(ABLATION_DIR, f"curve_{scheme_name}.csv")
     if os.path.exists(curve_path):
         print(f"\n  [SKIP]    {scheme_name:25s}  curve already exists, skipping training.")
@@ -58,12 +58,11 @@ def run_triplet_group(scheme_name, lambda_val, backbone):
 
     out_dir = os.path.join(ABLATION_DIR, f"run_{scheme_name}")
     print(f"\n{'='*62}")
-    print(f"  [Triplet] {scheme_name:25s}  backbone={backbone:<5s}  lambda={lambda_val}")
+    print(f"  [Triplet] {scheme_name:25s}  lambda={lambda_val}")
     print(f"{'='*62}")
 
     cmd = (
         f"python3 scripts/offline/train_offline_lightning.py"
-        f" --backbone {backbone}"
         f" --lambda_triplet {lambda_val}"
         f" --output_dir {out_dir}"
     )
@@ -84,7 +83,7 @@ def run_daiml_group(scheme_name="nf_daiml"):
 
     out_dir = os.path.join(ABLATION_DIR, f"run_{scheme_name}")
     print(f"\n{'='*62}")
-    print(f"  [DAIML]   {scheme_name:25s}  backbone=PhiNetwork (2-layer, SN)")
+    print(f"  [DAIML]   {scheme_name:25s}  backbone=official Phi_Net + DAIML")
     print(f"{'='*62}")
 
     cmd = (
@@ -113,10 +112,10 @@ def _extract_curve(out_dir, scheme_name):
 
 def print_summary():
     print("\n" + "="*62)
-    print("  Backbone Ablation Experiment Completed")
+    print("  Loss Function Ablation Experiment Completed")
     print("="*62)
     print(f"  Output directory: {ABLATION_DIR}\n")
-    for name in ["nf_daiml", "ours_no_triplet", "ours_nf_backbone", "ours_full"]:
+    for name in ["nf_daiml", "ours_no_triplet", "ours_full"]:
         path = os.path.join(ABLATION_DIR, f"curve_{name}.csv")
         marker = "OK" if os.path.exists(path) else "MISSING"
         print(f"  [{marker:7s}]  curve_{name}.csv")
@@ -126,7 +125,8 @@ def print_summary():
 
 if __name__ == "__main__":
     print("="*62)
-    print("  Backbone Ablation Experiment  (4 groups)")
+    print("  Loss Function Ablation Experiment  (3 groups)")
+    print("  Backbone: official Neural-Fly Phi_Net (PhiNetworkFCML) for ALL groups")
     print("  All outputs go to: training_results/backbone_ablation/")
     print("  checkpoints/ and main curve files will NOT be modified.")
     print("="*62)
@@ -134,13 +134,10 @@ if __name__ == "__main__":
     # [A] Neural-Fly baseline: DAIML adversarial training
     run_daiml_group("nf_daiml")
 
-    # [B] Ablate triplet loss: our backbone + pure MSE
-    run_triplet_group("ours_no_triplet", lambda_val=0.0, backbone="ours")
+    # [B] Ablate triplet loss: official backbone + pure MSE
+    run_triplet_group("ours_no_triplet", lambda_val=0.0)
 
-    # [C] Ablate backbone: NF backbone + DTW-Triplet loss
-    run_triplet_group("ours_nf_backbone", lambda_val=1.0, backbone="nf")
-
-    # [D] Full FCML method: our backbone + DTW-Triplet
-    run_triplet_group("ours_full", lambda_val=1.0, backbone="ours")
+    # [D] Full FCML method: official backbone + DTW-Triplet
+    run_triplet_group("ours_full", lambda_val=1.0)
 
     print_summary()
