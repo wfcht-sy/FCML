@@ -416,6 +416,10 @@ async def run(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--controller', type=str, required=True)
+    parser.add_argument('--controller', type=str, required=True,
+                        choices=['Baseline','INDI','L1','Neural-Fly','FCML','FCML_NoTriplet'])
     parser.add_argument('--wind', type=str, required=True)
-    asyncio.run(run(parser.parse_args()))
+    parser.add_argument('--model_path', type=str, default=None,
+                        help='Override checkpoint path (useful for custom ablation weights)')
+    args = parser.parse_args()
+    asyncio.run(run(args))
