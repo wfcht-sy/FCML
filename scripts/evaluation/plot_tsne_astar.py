@@ -129,7 +129,19 @@ def main():
             
         if os.path.exists(pth_path):
             ckpt = torch.load(pth_path, map_location='cpu', weights_only=True)
-            model.load_state_dict(ckpt['model_state_dict'] if 'model_state_dict' in ckpt else ckpt)
+            state_dict = ckpt['model_state_dict'] if 'model_state_dict' in ckpt else ckpt
+            
+            # Fix keys if loaded from lightning checkpoint that had prefix
+            if "Neural-Fly" in model_name:
+                fixed_state_dict = {}
+                for k, v in state_dict.items():
+                    if k.startswith('phi_net.'):
+                        fixed_state_dict[k.replace('phi_net.', '')] = v
+                    elif not k.startswith('discriminator.'): # handle pure phinetwork keys
+                        fixed_state_dict[k] = v
+                state_dict = fixed_state_dict
+                
+            model.load_state_dict(state_dict, strict=False)
         else:
             print(f"WARNING: Model file not found: {pth_path}")
             print(f"  Skipping '{model_name}'. Please ensure the model is trained first.")
@@ -171,7 +183,7 @@ def main():
             early_exaggeration=15.0,
             metric='euclidean',      
             learning_rate='auto',
-            n_iter=3000, 
+            max_iter=3000, 
             init='pca',              
             random_state=42          
         )

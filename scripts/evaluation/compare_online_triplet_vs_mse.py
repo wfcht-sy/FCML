@@ -206,9 +206,9 @@ def compare_online():
 
 
 def _print_summary(data: dict):
-    print("\n  ┌──────────────────────┬────────────────┬────────────────┬──────────┐")
-    print(  "  │ Wind Condition       │ [D] DTW-Triplet│ [B] MSE-only   │  Δ RMSE  │")
-    print(  "  ├──────────────────────┼────────────────┼────────────────┼──────────┤")
+    print("\n  +----------------------+----------------+----------------+----------+")
+    print(  "  | Wind Condition       | [D] DTW-Triplet| [B] MSE-only   |  Δ RMSE  |")
+    print(  "  +----------------------+----------------+----------------+----------+")
 
     triplet_wins = 0
     for wind_tag, wind_label in WIND_CONDITIONS:
@@ -222,16 +222,16 @@ def _print_summary(data: dict):
             delta = rmse_d - rmse_b
             delta_str = f"{delta:+.4f}"
             if delta < 0:
-                delta_str += " ✓"
+                delta_str += " *"
                 triplet_wins += 1
         else:
             delta_str = "  N/A   "
 
         d_str = f"{rmse_d:.5f}" if not np.isnan(rmse_d) else " MISSING"
         b_str = f"{rmse_b:.5f}" if not np.isnan(rmse_b) else " MISSING"
-        print(f"  │ {wind_label:<20s} │   {d_str}    │   {b_str}    │ {delta_str:<8s} │")
+        print(f"  | {wind_label:<20s} |   {d_str}    |   {b_str}    | {delta_str:<8s} |")
 
-    print(  "  └──────────────────────┴────────────────┴────────────────┴──────────┘")
+    print(  "  +----------------------+----------------+----------------+----------+")
     print(  "  Δ RMSE = [D] - [B]  (negative = DTW-Triplet tracks better)")
     if triplet_wins > 0:
         total = sum(1 for t, _ in WIND_CONDITIONS

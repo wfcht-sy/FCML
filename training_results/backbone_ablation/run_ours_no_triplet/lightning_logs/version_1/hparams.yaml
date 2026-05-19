@@ -1,0 +1,5 @@
+backbone: ours
+epochs: 300
+lambda_triplet: 0.0
+lr: 0.003
+reg_lambda: 1.0e-05

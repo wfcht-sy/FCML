@@ -1,0 +1,5 @@
+epochs: 300
+lambda_adv: 0.1
+lr: 0.001
+num_domains: 6
+reg_lambda: 0.0001
