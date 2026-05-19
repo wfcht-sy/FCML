@@ -22,7 +22,7 @@ from scripts.offline.models import PhiNetworkFCML, PhiNetwork as PhiNetworkNF
 # ================= Configuration =================
 MODEL_PATHS = {
     "FCML (Epoch 0)": os.path.join(TSNE_CKPT_DIR, "tsne_model_epoch_0.pth"),
-    "FCML (Epoch Mid)": os.path.join(TSNE_CKPT_DIR, "tsne_model_epoch_mid.pth"),
+    "FCML_NoTriplet (Final)": os.path.join(CHECKPOINTS_DIR, "fcml_notriplet.pth"),
     "FCML (Final)": os.path.join(TSNE_CKPT_DIR, "best_model.pth"),
     "Neural-Fly (Final)": os.path.join(CHECKPOINTS_DIR, "neural_fly_daiml_best.pth")
 }
