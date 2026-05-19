@@ -114,8 +114,9 @@ Neural-Fly 原始工作的学术定位聚焦于**在线自适应律的稳定性�
 我们针对 FCML 提出的 `DTW-Triplet` 损失进行了专门的离线与在线消融。
 * 运行 `scripts/offline/run_backbone_ablation.py` 可一键复现纯 MSE 损失网络与包含 DTW-Triplet 的网络训练过程。
 * 离线验证结果表明，虽然纯 MSE 损失在验证集上能取得略低一点的数值预测误差（Val MSE），但它仅仅是死记硬背了局部特征，并未学习到跨风况（域）的通用特征流形结构。
+* **特征空间可视化**：运行 `scripts/evaluation/visualize_feature_clusters.py`，可以提取不同风况（0, 8.5, 12.1 m/s）和不同飞行姿态下的特征向量。使用 t-SNE 降维投影后的 `fig4_tsne_action_dominant.png` 清晰地展示了：Triplet 约束促使网络学习到了以“飞行姿态（Attitude）”为第一主导因子、以“风场强度（Wind Condition）”为第二因子的连续且边界分明的特征流形；而经过有监督的 LDA 降维后（`fig5_lda_action_dominant.png`），不同姿态聚类更是被彻底解耦，证明了提取的气动特征不仅连续，且具备极强的物理可解释性。进一步地，运行 `scripts/evaluation/plot_tsne_astar.py` 生成的 `tsne_evolution_final_v2.png` 清晰展示了在训练的初始、中期以及结束阶段，FCML 所学特征空间的演化过程，并将其与最终的 Neural-Fly 模型进行了直观对比，其中也可以包括对 fcml_notriplet 的扩展比对（若有）。
 
 ### 6.3 在线仿真：抗风跟踪性能跨域验证
 为了证明 DTW-Triplet 损失带来的真实飞行效益，本方案新增了在线一键消融工具链：
 * **数据生成**：通过执行 `./run_notriplet_eval.sh`，可全自动地在 5 种不同工况下，测试“无 Triplet 约束”的纯 MSE 模型（FCML_NoTriplet）的真实抗风跟踪能力。
-* **效果对比**：结果充分证明：即使离线 MSE 略高，引入 DTW-Triplet 约束后，无人机在所有物理仿真风场下的在线跟踪误差显著下降了近一个数量级（从约 4.5m 降至 0.3m）。这一巨大的物理性能反差构建了完整且坚实的消融实验逻辑链，证明了强制特征空间具备“域不变性（Domain-invariant）”几何结构的必要性。
+* **效果对比**：查看生成的 `fig_triplet_vs_mse_online.png`，结果充分证明：即使离线 MSE 略高，引入 DTW-Triplet 约束后，无人机在所有物理仿真风场下的在线跟踪误差显著下降了近一个数量级（从约 4.5m 降至 0.3m）。这一巨大的物理性能反差构建了完整且坚实的消融实验逻辑链，证明了强制特征空间具备“域不变性（Domain-invariant）”几何结构的必要性。
