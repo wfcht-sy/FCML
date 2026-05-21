@@ -54,7 +54,7 @@ $$\dot{\hat{A}} = \frac{1}{1 + c \|\phi(x)\|^2} P \phi(x)^T \left( \frac{1}{R_{g
 2. **泄露项阻尼 ($\sigma$-modification)**：公式末尾的负向耗散项 $-\lambda_{damp} \hat{A}$ 作为经典自适应控制（MRAC）框架内的泄露因子，稳定消耗零均值高频噪声引发的权重寄生积分，彻底抑制参数的无界漂移现象。
 3. **参数投影算子 (Projection Operator)**：在积分计算后，对生成的权重矩阵引入刚性参数投影机制，限定权重 $\hat{A}$ 处于保守超球体 $\Omega = \{\hat{A} \mid \|\hat{A}\| \le \theta_{max}\}$ 内部。进一步地，针对算出的前馈加速度向量 $a_{comp}$ 也实施刚性截断保证不会穿透多旋翼飞行器的最大富余拉力上限。
 
-经过这些鲁棒算子处理后，纯理论解算出的网络补偿指令 $a_{comp_{raw}}$ 最终经过常系数 $\alpha$ 构造的一阶指数滑动平均离散低通滤波器（1st-order EMA Low-pass Filter）平滑滤噪，最终串接输入标称双积分控制平面，实现极度宽泛且鲁棒的高性能闭环操作。
+经过这些鲁棒算子处理后，网络直接输出最原始的补偿指令 $a_{comp}$ 串接输入标称双积分控制平面。值得注意的是，早期设计中曾引入一阶指数滑动平均离散低通滤波器（1st-order EMA Low-pass Filter）进行平滑滤噪，但后续发现在高频扰动下该滤波器会引入致命的相位滞后（Phase Lag）与幅值衰减，严重影响客观评估。因此在最新的评估与部署中，已全局去除了 EMA 滤波环节，实现了零相位延迟的真实补偿输出。
 
 ---
 
@@ -93,7 +93,7 @@ Neural-Fly 原始工作的学术定位聚焦于**在线自适应律的稳定性�
 3. **跟踪误差与复合滑模面构造**：$e_p, e_v$，及 $s = e_v + \lambda_{intent} e_p$。
 4. **特征提取**：$\phi(x)$，网络隐层冻结。
 5. **复合自适应权重更新**：$\dot{\hat{A}} = \frac{1}{1 + c \|\phi\|^2} P \phi^T \left( \frac{1}{R_{gain}} e_{pred} + W_{track} s \right) - \lambda_{damp} \hat{A}$，叠加参数投影算子。
-6. **前馈补偿合成与鲁棒后处理**：$a_{comp_{raw}} = \hat{A}^T \phi(x)$ → 加速度投影（Thrust-bound Projection）→ 一阶 EMA 低通滤波得到 $a_{comp}$。
+6. **前馈补偿合成与鲁棒后处理**：$a_{comp} = \hat{A}^T \phi(x)$ → 加速度投影（Thrust-bound Projection）（已完全去除 EMA 滤波以消除相位滞后）。
 7. **标称反馈合成**：$a_{pid} = K_p e_p + K_d e_v$，其中增益配置受益于 3.3 节论证的解锁带宽。
 8. **总指令输出**：$a_{cmd} = a_{ref} + a_{pid} + a_{comp}$。
 
