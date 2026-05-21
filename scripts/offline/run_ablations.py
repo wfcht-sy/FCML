@@ -17,7 +17,7 @@ def run_training_and_extract(lambda_val, scheme_name):
     out_dir = os.path.join(TRAIN_DIR, f"run_{scheme_name}")
     print(f"\n{'='*50}\nStarting training: {scheme_name} (Triplet Lambda = {lambda_val})\n{'='*50}")
     
-    cmd = f"python3 train_offline_lightning.py --lambda_triplet {lambda_val} --output_dir {out_dir}"
+    cmd = f"python3 scripts/offline/train_offline_lightning.py --lambda_triplet {lambda_val} --output_dir {out_dir}"
     subprocess.run(cmd, shell=True, check=True)
 
     csv_files = glob.glob(os.path.join(out_dir, "lightning_logs", "version_*", "metrics.csv"))

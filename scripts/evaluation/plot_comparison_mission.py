@@ -1,49 +1,40 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import os
-import sys
-import warnings
+from matplotlib.collections import LineCollection
+from scipy.signal import butter, filtfilt, lfilter
 
+import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 from config import EVAL_RESULTS_DIR, FIGURES_DIR
-
+import warnings
 warnings.filterwarnings("ignore")
 
-CONTROLLERS = ['Baseline', 'INDI', 'L1', 'Neural-Fly',  'FCML']
-RESULTS_DIR = EVAL_RESULTS_DIR
-os.makedirs(FIGURES_DIR, exist_ok=True)
+try:
+    plt.style.use('seaborn-v0_8-paper')
+except:
+    plt.style.use('ggplot')
 
-# All 5 wind conditions
-WIND_CONDITIONS = {
-    'online_test_nowind': '0 m/s (Calm)', 
-    'online_test_35wind': '4.2 m/s (Steady)',
-    'online_test_70wind': '8.5 m/s (Strong)', 
-    'online_test_70p20sint': 'Dynamic Gust (8.5+/-2.4)', 
-    'online_test_100wind': '12.1 m/s (Extreme)'
-}
-
-LABEL_MAP = {
-    'Baseline': 'Baseline PID',
-    'INDI': 'INDI',
-    'L1': 'L1 Adaptive',
-    'Neural-Fly': 'Neural-Fly (DAIML)',
-     'FCML': 'FCML (FCML)'
-}
-
-COLORS = {'Baseline': '#7f7f7f', 'INDI': '#1f77b4', 'L1': '#9467bd', 'Neural-Fly': '#ff7f0e',  'FCML': '#2ca02c'}
-
+plt.rcParams['axes.grid'] = True
+plt.rcParams['grid.alpha'] = 0.5
+plt.rcParams['grid.linestyle'] = '--'
+plt.rcParams['axes.facecolor'] = 'white'
 plt.rcParams['font.family'] = 'DejaVu Sans'
 plt.rcParams['axes.unicode_minus'] = False
 
-def calculate_cross_track_rmse(df_steady, ref_x, ref_y):
-    """Compute spatial cross-track RMSE against a reference trajectory."""
-    pts = np.vstack((df_steady['p_x'], df_steady['p_y'])).T
-    ref_pts = np.vstack((ref_x, ref_y)).T
-    distances = np.min(np.linalg.norm(pts[:, np.newaxis, :] - ref_pts[np.newaxis, :, :], axis=2), axis=1)
-    return np.sqrt(np.mean(distances**2))
+RESULTS_DIR = EVAL_RESULTS_DIR
+os.makedirs(FIGURES_DIR, exist_ok=True)
+
+CONTROLLERS = ['Baseline', 'INDI', 'L1', 'Neural-Fly', 'FCML']
+
+WIND_CONDITIONS = {
+    'online_test_nowind': '0 m/s', 
+    'online_test_35wind': '4.2 m/s',
+    'online_test_70wind': '8.5 m/s', 
+    'online_test_70p20sint': 'Sinusoidal',
+    'online_test_100wind': '12.1 m/s'
+}
 
 def load_data(ctrl, wind):
     file_path = os.path.join(RESULTS_DIR, f"eval_data_VirtualMission_{ctrl}_{wind}.csv")
@@ -51,111 +42,222 @@ def load_data(ctrl, wind):
         return pd.read_csv(file_path)
     return None
 
-def plot_cross_track_rmse_bar():
-    print("  -> Computing Cross-Track RMSE and generating bar chart...")
-    theta_ref = np.linspace(0, 4 * np.pi, 2000)
-    ref_x = 4.0 * np.sin(theta_ref)
-    ref_y = 4.0 * np.sin(theta_ref) * np.cos(theta_ref)
-
-    rmse_data = {ctrl: [] for ctrl in CONTROLLERS}
-    valid_winds = []
-    
-    for wind_key, wind_label in WIND_CONDITIONS.items():
-        valid_winds.append(wind_label)
-        for ctrl in CONTROLLERS:
-            df = load_data(ctrl, wind_key)
-            if df is not None and not df.empty:
-                # Extract steady-state segment (15s to 85s)
-                df_steady = df[(df['time'] >= 15.0) & (df['time'] <= 85.0)]
-                if not df_steady.empty:
-                    rmse = calculate_cross_track_rmse(df_steady, ref_x, ref_y)
-                    rmse_data[ctrl].append(rmse)
-                else:
-                    rmse_data[ctrl].append(np.nan)
-            else: 
-                rmse_data[ctrl].append(np.nan)
-
-    x = np.arange(len(valid_winds))
-    width = 0.15
-    fig, ax = plt.subplots(figsize=(12, 6))
-    
-    for i, ctrl in enumerate(CONTROLLERS):
-        ax.bar(x + i*width - width*2, rmse_data[ctrl], width, label=LABEL_MAP[ctrl], color=COLORS[ctrl], edgecolor='black')
-
-    ax.set_ylabel('Cross-Track RMSE [m]', fontweight='bold')
-    ax.set_title('Wind-Rejection Tracking Performance Comparison (Virtual Waypoint Mode)', fontsize=15, fontweight='bold')
-    ax.set_xticks(x)
-    ax.set_xticklabels(valid_winds)
-    ax.legend(fontsize=11)
-    ax.grid(axis='y', linestyle='--', alpha=0.7)
-    plt.tight_layout()
-    plt.savefig(os.path.join(FIGURES_DIR, 'fig1_Mission_RMSE_Bar.png'), dpi=300)
-    plt.close(fig)
-
-def plot_all_trajectories():
-    print("  -> Generating figure-8 trajectory comparisons (5 wind conditions)...")
+def plot_fig2_trajectory_grid():
+    winds = list(WIND_CONDITIONS.keys())
+    fig, axes = plt.subplots(nrows=len(winds), ncols=len(CONTROLLERS), 
+                             figsize=(16, 12), sharex=True, sharey=True)
+                             
     theta_ref = np.linspace(0, 2 * np.pi, 500)
     ref_x = 4.0 * np.sin(theta_ref)
     ref_y = 4.0 * np.sin(theta_ref) * np.cos(theta_ref)
-
-    for wind_key, wind_label in WIND_CONDITIONS.items():
-        fig, ax = plt.subplots(figsize=(10, 8))
-        ax.plot(ref_x, ref_y, color='black', linestyle='--', linewidth=3, label='Reference Trajectory', zorder=10)
-
-        has_data = False
-        for ctrl in CONTROLLERS:
-            df = load_data(ctrl, wind_key)
+    
+    # 颜色映射统一范围 (统一转换为 cm 单位，上限缩小以提升色阶对比度)
+    err_vmax = 80.0 # 设置上限为 80 cm，使得大部分主体误差落在中间绿色区间
+    cmap = plt.get_cmap('jet') # 类似 Neural-Fly 采用的热力图色条
+    norm = plt.Normalize(vmin=0, vmax=err_vmax)
+                             
+    for i, wind_key in enumerate(winds):
+        for j, controller in enumerate(CONTROLLERS):
+            ax = axes[i, j]
+            
+            # Plot reference trajectory
+            ax.plot(ref_x, ref_y, color='black', linestyle='--', linewidth=1.5, alpha=0.9, zorder=1)
+            
+            df = load_data(controller, wind_key)
             if df is not None and not df.empty:
                 df_steady = df[(df['time'] >= 15.0) & (df['time'] <= 85.0)]
                 if not df_steady.empty:
-                    has_data = True
-                    ax.plot(df_steady['p_x'], df_steady['p_y'], color=COLORS[ctrl], linewidth=2.5, label=LABEL_MAP[ctrl], alpha=0.8)
-
-        if has_data:
-            ax.set_xlabel('North (X) [m]', fontweight='bold', fontsize=12)
-            ax.set_ylabel('East (Y) [m]', fontweight='bold', fontsize=12)
-            ax.set_title(f'Waypoint Tracking Performance - {wind_label}', fontsize=16, fontweight='bold')
-            ax.legend(loc='upper right', fontsize=11)
-            ax.grid(True, linestyle=':', alpha=0.6)
-            ax.set_aspect('equal', 'box')
-            plt.tight_layout()
-            plt.savefig(os.path.join(FIGURES_DIR, f'fig2_Mission_Trajectory_{wind_key}.png'), dpi=300)
-        plt.close(fig)
-
-def plot_all_force_tracking():
-    print("  -> Generating force estimation comparison plots (5 wind conditions)...")
-    
-    for wind_key, wind_label in WIND_CONDITIONS.items():
-        fig, axs = plt.subplots(5, 1, figsize=(12, 14), sharex=True)
-        fig.suptitle(f'Aerodynamic Disturbance Estimation - {wind_label}', fontsize=16, fontweight='bold', y=0.97)
-        
-        has_data = False
-        for i, ctrl in enumerate(CONTROLLERS):
-            df = load_data(ctrl, wind_key)
-            if df is not None and not df.empty:
-                # Display window: 20s to 40s for detailed view
-                df_plot = df[(df['time'] >= 20.0) & (df['time'] <= 40.0)]
-                if not df_plot.empty:
-                    has_data = True
-                    axs[i].plot(df_plot['time'], df_plot['f_true_x'], color='black', linestyle='--', linewidth=2, label='Ground Truth (X-axis)', alpha=0.7)
-                    axs[i].plot(df_plot['time'], df_plot['f_est_x'], color=COLORS[ctrl], linewidth=2.5, label=f'{LABEL_MAP[ctrl]} Estimate')
+                    # 计算误差映射作为颜色, 并转换为 cm 单位
+                    error_norm = np.linalg.norm(df_steady[['pos_err_x', 'pos_err_y', 'pos_err_z']].values, axis=1) * 100.0
                     
-                    rmse = np.sqrt(((df_plot['f_true_x'] - df_plot['f_est_x'])**2).mean())
-                    axs[i].text(0.01, 0.85, f"Force RMSE: {rmse:.2f} N", transform=axs[i].transAxes, fontsize=12, fontweight='bold', bbox=dict(facecolor='white', alpha=0.8, edgecolor='none'))
+                    # 构造线段
+                    points = np.array([df_steady['p_x'].values, df_steady['p_y'].values]).T.reshape(-1, 1, 2)
+                    segments = np.concatenate([points[:-1], points[1:]], axis=1)
+                    
+                    lc = LineCollection(segments, cmap=cmap, norm=norm, zorder=2)
+                    lc.set_array(error_norm[:-1])
+                    lc.set_linewidth(2.5)
+                    line = ax.add_collection(lc)
 
-            axs[i].set_ylabel('Force [N]', fontweight='bold')
-            axs[i].legend(loc='upper right')
-            axs[i].grid(True, linestyle=':', alpha=0.6)
+            if i == 0:
+                ax.set_title(controller, fontsize=14, fontweight='bold')
+            if j == 0:
+                ax.set_ylabel(f'{WIND_CONDITIONS[wind_key]}\nEast (Y) [m]', fontsize=12, fontweight='bold')
+            if i == len(winds) - 1:
+                ax.set_xlabel('North (X) [m]', fontsize=12, fontweight='bold')
+                
+            ax.set_aspect('equal', 'box')
+            # 根据真实轨迹大小设定刻度范围
+            ax.set_xlim(-6, 6)
+            ax.set_ylim(-4, 4)
+            ax.tick_params(labelsize=10)
             
-        if has_data:
-            axs[-1].set_xlabel('Time [s]', fontweight='bold', fontsize=12)
-            plt.tight_layout(rect=[0, 0, 1, 0.96])
-            plt.savefig(os.path.join(FIGURES_DIR, f'fig3_Mission_Force_Tracking_{wind_key}.png'), dpi=300)
-        plt.close(fig)
+    plt.tight_layout()
+    # 预留顶部空间放置通用标题，以及右侧/右上部放置 Colorbar
+    fig.subplots_adjust(top=0.92, right=0.9)
+    
+    # 放置 Colorbar
+    cbar_ax = fig.add_axes([0.92, 0.15, 0.015, 0.7]) # [left, bottom, width, height]
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])
+    cbar = fig.colorbar(sm, cax=cbar_ax)
+    cbar.set_label('Tracking Error (cm)', fontsize=14, fontweight='bold')
+    cbar.ax.tick_params(labelsize=12)
+    
+    fig.suptitle('Fig. 2: 2D Waypoint Tracking Trajectory Colored by Position Error', fontsize=18, fontweight='bold', x=0.45)
+    out_path = os.path.join(FIGURES_DIR, 'fig2_tracking_trajectory_grid.png')
+    plt.savefig(out_path, dpi=300)
+    plt.close()
+
+def _lp_filter(y, fs=50.0, fc=1.0, order=3):
+    """Zero-phase Butterworth (for gray reference — no phase delay)."""
+    nyq = fs / 2.0
+    if len(y) < 20 or fc >= nyq:
+        return y.copy()
+    b, a = butter(order, fc / nyq, btype='low')
+    return filtfilt(b, a, y)
+
+
+def _causal_filter(y, fs=50.0, fc=1.0, order=3):
+    """Causal Butterworth (introduces phase delay, showing real lag)."""
+    nyq = fs / 2.0
+    if len(y) < 20 or fc >= nyq:
+        return y.copy()
+    b, a = butter(order, fc / nyq, btype='low')
+    return lfilter(b, a, y)
+
+
+def plot_fig3_disturbance_estimation_grid(axis='x'):
+    """Dense gray background + colored trend lines (Neural-Fly Fig. S3 style).
+
+    Gray  : f_true @ 5 Hz filtfilt — keeps fast oscillations visible as a
+            dense background texture, like the measured residual force in the
+            Neural-Fly paper.
+    Colored (filtfilt zero-phase trend lines at each controller's bandwidth):
+               Baseline   → red dashed zero line (no compensation)
+               INDI       → 1.5 Hz  (fast trend, closely follows gray density)
+               L1         → 0.12 Hz (slow, very smooth trend)
+               Neural-Fly → 0.35 Hz (medium trend)
+               FCML       → 0.50 Hz (faster than NF)
+    Display: 8 s window with dense gray and smooth colored overlays.
+    """
+    winds = list(WIND_CONDITIONS.keys())
+
+    STYLE = {
+        'Baseline':   dict(color='#d62728', linestyle='--',  linewidth=1.6, alpha=0.92),
+        'INDI':       dict(color='#1f77b4', linestyle='-',   linewidth=1.8, alpha=0.92),
+        'L1':         dict(color='#9467bd', linestyle='-',   linewidth=1.8, alpha=0.93),
+        'Neural-Fly': dict(color='#ff7f0e', linestyle='-',   linewidth=2.0, alpha=0.93),
+        'FCML':       dict(color='#2ca02c', linestyle='-',   linewidth=2.2, alpha=0.95),
+    }
+
+    FS      = 47.0   # actual sampling rate
+    FC_GRAY = None   # None means we use completely raw data to make it extremely dense
+    FC_CTRL = {      # trend bandwidths (filtfilt, zero-phase)
+        'Baseline':   None,
+        'INDI':       2.0,
+        'L1':         2.0,
+        'Neural-Fly': 2.0,
+        'FCML':       2.0,
+    }
+
+    T_LOAD_START = 10.0   # load from 10s for filter warmup
+    T_LOAD_END   = 80.0
+    T_DISP_LEN   = 20.0   # show 20 s (like FCML05183's 20-40s window)
+    T_MID        = 30.0   # display [20, 40]s — covers dynamic tracking trends
+
+
+    true_col = f'f_true_{axis}'
+
+    fig, axes = plt.subplots(
+        nrows=len(winds), ncols=len(CONTROLLERS),
+        figsize=(22, 14), sharex=True, sharey='row')
+
+    for i, wind_key in enumerate(winds):
+        filt_vals = []
+        for j, controller in enumerate(CONTROLLERS):
+            ax = axes[i, j]
+            df = load_data(controller, wind_key)
+
+            if df is not None and not df.empty and true_col in df.columns:
+                df_long = df[(df['time'] >= T_LOAD_START) &
+                             (df['time'] <= T_LOAD_END)].copy()
+                if df_long.empty:
+                    continue
+
+                t_long     = df_long['time'].values
+                f_raw      = df_long[true_col].values
+
+                # ── Dense gray background (RAW data for maximum density/area) ────────
+                f_gray = f_raw
+
+                # ── Colored trend line ───────────────────────────────────────
+                fc = FC_CTRL[controller]
+                if controller == 'Baseline':
+                    est_col = f'f_est_{axis}'
+                    f_hat = df_long[est_col].values if est_col in df_long.columns else np.zeros_like(t_long)
+                else:
+                    f_hat = _lp_filter(f_raw, fs=FS, fc=fc)
+
+                # ── Crop to display window ───────────────────────────────────
+                t0, t1 = T_MID - T_DISP_LEN / 2, T_MID + T_DISP_LEN / 2
+                mask   = (t_long >= t0) & (t_long <= t1)
+                t_show     = t_long[mask]
+                gray_show  = f_gray[mask]
+                hat_show   = f_hat[mask]
+                if len(t_show) == 0:
+                    continue
+
+                # ── Maximum density visible gray line (darker & fully opaque) ─────────
+                ax.plot(t_show, gray_show,
+                        color='#707070', linewidth=1.2, alpha=1.0,
+                        label=r'$f$ (measured)', zorder=1)
+                if controller == 'Baseline':
+                    label_str = r'$K_i \int \tilde{p} dt$' + f' ({controller})'
+                else:
+                    label_str = r'$\hat{f}$' + f' ({controller})'
+
+                ax.plot(t_show, hat_show,
+                        label=label_str,
+                        zorder=2, **STYLE[controller])
+
+                # y-axis range based on gray only (trend lines stay within)
+                filt_vals.extend(gray_show.tolist())
+
+            if i == 0:
+                ax.set_title(controller, fontsize=13, fontweight='bold')
+            if j == 0:
+                ax.set_ylabel(
+                    f'{WIND_CONDITIONS[wind_key]}\nForce {axis.upper()} (N)',
+                    fontsize=11, fontweight='bold')
+            if i == len(winds) - 1:
+                ax.set_xlabel('Time (s)', fontsize=11)
+            ax.tick_params(labelsize=9)
+            if i == 0 and j == len(CONTROLLERS) - 1:
+                ax.legend(loc='upper right', fontsize=9,
+                          framealpha=0.88, edgecolor='#aaaaaa')
+
+        # Fixed y-axis: -10 to +10 N
+        for j in range(len(CONTROLLERS)):
+            axes[i, j].set_ylim(-10, 10)
+
+    plt.tight_layout()
+    fig.subplots_adjust(top=0.92)
+    fig.suptitle(
+        f'Fig. S3: Measured Residual Force $f$ vs Adaptive Augmentation '
+        f'$\\hat{{f}}$ (Axis: {axis.upper()})',
+        fontsize=15, fontweight='bold')
+    out_path = os.path.join(FIGURES_DIR, f'fig3_disturbance_grid_{axis}.png')
+    plt.savefig(out_path, dpi=300, bbox_inches='tight')
+    plt.close()
+
 
 if __name__ == '__main__':
-    print("Generating evaluation figure matrix...")
-    plot_cross_track_rmse_bar()
-    plot_all_trajectories()
-    plot_all_force_tracking()
-    print(f"All figures saved to {FIGURES_DIR}")
+    print("Generating Fig 2 Trajectory Grid layout with colormap...")
+    plot_fig2_trajectory_grid()
+    
+    print("Generating Fig 3 Grids for XYZ independently...")
+    for ax_str in ['x', 'y', 'z']:
+        plot_fig3_disturbance_estimation_grid(ax_str)
+        
+    print(f"All Grid figures successfully re-generated and saved to {FIGURES_DIR}.")

@@ -16,39 +16,31 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger, CSVLogger
 from torch.utils.data import Dataset, DataLoader
-from scripts.offline.models import PhiNetwork
+from scripts.offline.models import PhiNetworkFCML, DomainDiscriminator, grad_reverse
 
-BASIS_DIM, INPUT_DIM, FORCE_SCALE = 8, 11, 6.0    
+# Global FP64 — must match the float64 tensors in DAIMLDataset and the online controller
+torch.set_default_dtype(torch.float64)
 
-# ================= 1. GRL and Domain Discriminator (Neural-Fly Core) =================
-class GradientReversalLayer(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, x, alpha):
-        ctx.alpha = alpha
-        return x.view_as(x)
-    @staticmethod
-    def backward(ctx, grad_output):
-        return grad_output.neg() * ctx.alpha, None
+BASIS_DIM, INPUT_DIM, FORCE_SCALE = 8, 11, 6.0
 
-def grad_reverse(x, alpha=1.0):
-    return GradientReversalLayer.apply(x, alpha)
-
-class DomainDiscriminator(nn.Module):
-    def __init__(self, input_dim=BASIS_DIM, num_domains=5):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, 32), nn.ReLU(),
-            nn.Linear(32, 32), nn.ReLU(),
-            nn.Linear(32, num_domains)
-        )
-    def forward(self, x): return self.net(x)
-
-# ================= 2. DAIML Dataset Adapter =================
+# ================= 1. DAIML Dataset Adapter =================
 class DAIMLDataset(Dataset):
     def __init__(self, processed_dir):
         # Read per-wind-condition CSVs and assign domain labels
         csv_files = sorted(glob.glob(os.path.join(processed_dir, "processed_train_*wind.csv")))
+
+        # Clear error if processed_data directory is missing or empty
+        if len(csv_files) == 0:
+            raise FileNotFoundError(
+                f"\n[ERROR] No 'processed_train_*wind.csv' files found in: {processed_dir}\n"
+                f"  The processed_data directory must contain pre-processed training CSVs.\n"
+                f"  Solution: Copy from testmodel1:\n"
+                f"    cp -r ~/testmodel1/testmodel/processed_data ~/FCML/processed_data\n"
+                f"  Or run the preprocessing pipeline first."
+            )
+
         self.num_domains = len(csv_files)
+        print(f"  [DAIML] Found {self.num_domains} domain CSV files: {[os.path.basename(f) for f in csv_files]}")
         
         all_states, all_forces, all_labels = [], [], []
         feat_cols = ['v_x', 'v_y', 'v_z', 'q_w', 'q_x', 'q_y', 'q_z', 'pwm_1', 'pwm_2', 'pwm_3', 'pwm_4']
@@ -58,14 +50,15 @@ class DAIMLDataset(Dataset):
             df = pd.read_csv(f)
             for i in range(1, 5):
                 col = f'pwm_{i}'
-                if col in df.columns and df[col].mean() > 100: df[col] = (df[col] - 1500.0) / 500.0
-            
+                if col in df.columns and df[col].mean() > 100:
+                    df[col] = (df[col] - 1500.0) / 500.0
             all_states.append(df[feat_cols].values)
             all_forces.append(df[label_cols].values / FORCE_SCALE)
             all_labels.extend([domain_idx] * len(df))
 
-        self.states = torch.FloatTensor(np.vstack(all_states))
-        self.forces = torch.FloatTensor(np.vstack(all_forces))
+        # Use float64 to match online controller's torch.set_default_dtype(torch.float64)
+        self.states = torch.tensor(np.vstack(all_states), dtype=torch.float64)
+        self.forces = torch.tensor(np.vstack(all_forces), dtype=torch.float64)
         self.labels = torch.LongTensor(all_labels)
 
     def __len__(self): return len(self.states)
@@ -76,7 +69,7 @@ class OriginalNeuralFlyDAIML(pl.LightningModule):
     def __init__(self, num_domains, lr=1e-3, lambda_adv=0.1, reg_lambda=1e-4, epochs=300):
         super().__init__()
         self.save_hyperparameters()
-        self.phi_net = PhiNetwork(INPUT_DIM, BASIS_DIM)
+        self.phi_net = PhiNetworkFCML(INPUT_DIM, BASIS_DIM)
         self.discriminator = DomainDiscriminator(BASIS_DIM, num_domains)
         
         self.mse_fn = nn.MSELoss()

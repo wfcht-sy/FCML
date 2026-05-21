@@ -21,10 +21,12 @@ from scripts.offline.models import PhiNetworkFCML, PhiNetwork as PhiNetworkNF
 
 # ================= Configuration =================
 MODEL_PATHS = {
-    "FCML (Epoch 0)": os.path.join(TSNE_CKPT_DIR, "tsne_model_epoch_0.pth"),
-    "FCML (Epoch Mid)": os.path.join(TSNE_CKPT_DIR, "tsne_model_epoch_mid.pth"),
-    "FCML (Final)": os.path.join(TSNE_CKPT_DIR, "best_model.pth"),
-    "Neural-Fly (Final)": os.path.join(CHECKPOINTS_DIR, "neural_fly_daiml_best.pth")
+    "Epoch 0 (Initial)": os.path.join(TSNE_CKPT_DIR, "tsne_model_epoch_0.pth"),
+    "Mid (No Triplet)": os.path.join(TSNE_CKPT_DIR, "notriplet", "tsne_model_epoch_mid.pth"),
+    "Mid (With Triplet)": os.path.join(TSNE_CKPT_DIR, "tsne_model_epoch_mid.pth"),
+    "Final (No Triplet)": os.path.join(TSNE_CKPT_DIR, "notriplet", "best_model.pth"),
+    "Final (With Triplet)": os.path.join(CHECKPOINTS_DIR, "best_model.pth"),
+    "Final (Neural-Fly)": os.path.join(CHECKPOINTS_DIR, "neural_fly_daiml_best.pth")
 }
 
 DATA_CSV = _DTW_CSV
@@ -34,7 +36,7 @@ WIND_CONDITIONS_CONFIG = {
     '0.0 m/s': '#1f77b4',  
     '4.2 m/s': '#2ca02c',  
     '8.5 m/s': '#ff7f0e',  
-    '12.0 m/s': '#d62728'  
+    '12.1 m/s': '#d62728'  
 }
 WIND_SPEEDS = list(WIND_CONDITIONS_CONFIG.keys())
 NUM_WINDS = len(WIND_SPEEDS)
@@ -117,7 +119,8 @@ def main():
     df = pd.read_csv(DATA_CSV)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     
-    fig, axes = plt.subplots(1, 4, figsize=(26, 6))
+    fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+    axes = axes.flatten()
 
     for i, (model_name, pth_path) in enumerate(MODEL_PATHS.items()):
         print(f"\n[{i+1}/4] Analyzing stage: {model_name}")
@@ -129,7 +132,19 @@ def main():
             
         if os.path.exists(pth_path):
             ckpt = torch.load(pth_path, map_location='cpu', weights_only=True)
-            model.load_state_dict(ckpt['model_state_dict'] if 'model_state_dict' in ckpt else ckpt)
+            state_dict = ckpt['model_state_dict'] if 'model_state_dict' in ckpt else ckpt
+            
+            # Fix keys if loaded from lightning checkpoint that had prefix
+            if "Neural-Fly" in model_name:
+                fixed_state_dict = {}
+                for k, v in state_dict.items():
+                    if k.startswith('phi_net.'):
+                        fixed_state_dict[k.replace('phi_net.', '')] = v
+                    elif not k.startswith('discriminator.'): # handle pure phinetwork keys
+                        fixed_state_dict[k] = v
+                state_dict = fixed_state_dict
+                
+            model.load_state_dict(state_dict, strict=False)
         else:
             print(f"WARNING: Model file not found: {pth_path}")
             print(f"  Skipping '{model_name}'. Please ensure the model is trained first.")
@@ -171,7 +186,7 @@ def main():
             early_exaggeration=15.0,
             metric='euclidean',      
             learning_rate='auto',
-            n_iter=3000, 
+            max_iter=3000, 
             init='pca',              
             random_state=42          
         )
@@ -216,10 +231,15 @@ def main():
         ax.spines['bottom'].set_linewidth(1.5)
         ax.spines['left'].set_linewidth(1.5)
         
-        if i == 3:
-            ax.legend(title="Wind Condition", bbox_to_anchor=(1.05, 1), loc='upper left', frameon=False, fontsize=13)
+        if i == 5:
+            # Gather handles and labels for the common legend
+            handles, labels_leg = ax.get_legend_handles_labels()
 
-    plt.tight_layout()
+    # Common Legend at the bottom
+    fig.legend(handles, labels_leg, title="Wind Condition", loc='lower center', 
+               bbox_to_anchor=(0.5, 0.02), ncol=NUM_WINDS, frameon=False, fontsize=14, title_fontsize=16)
+
+    plt.tight_layout(rect=[0, 0.08, 1, 1])
     os.makedirs(FIGURES_DIR, exist_ok=True)
     save_path = os.path.join(FIGURES_DIR, "tsne_evolution_final_v2.png")
     plt.savefig(save_path, dpi=300, bbox_inches='tight')

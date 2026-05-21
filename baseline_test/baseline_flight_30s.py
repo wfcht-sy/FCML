@@ -30,8 +30,8 @@ class BaselineControl:
         self.HOVER_THR = 0.70581
         
         # Since we bypassed the bloated flight controller filters, we can use high stiffness in Python!
-        self.Kp = np.array([5.0, 5.0, 5.0])
-        self.Kd = np.array([3.5, 3.5, 3.5])
+        self.Kp = np.array([6.0, 6.0, 6.0])
+        self.Kd = np.array([4.0, 4.0, 4.0])
 
     # 4.0m large trajectory mathematical equation (P, V, A strictly aligned)
     def get_target_position(self, t):

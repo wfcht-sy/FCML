@@ -75,32 +75,38 @@ bash scripts/extract_logs.sh
 
 ### Quick Start (Evaluations & Training)
 
-1. **Reproduce Training (Fig 0: Convergence Curves)**
+1. **Backbone Ablation & Training Curves (Loss Only)**
+   Evaluates validation MSE convergence across identical backbones under different loss functions.
    ```bash
    conda activate fcml
-   python scripts/offline/run_ablations.py
-   python scripts/evaluation/plot_training_curve.py
+   python scripts/offline/run_backbone_ablation.py
+   python scripts/evaluation/plot_backbone_ablation.py
    ```
+   *Generates:* `fig_backbone_ablation.png`
 
-2. **Generate T-SNE Evolution (T-SNE Feature Visualization)**
+2. **Generate T-SNE Evolution (2x3 Grid Visualization)**
+   Visualizes the feature clustering progression (Epoch 0, Mid, Final) comparing Triplet vs non-Triplet.
    ```bash
    conda activate fcml
-   python scripts/offline/train_offline_tsne.py
    python scripts/evaluation/plot_tsne_astar.py
    ```
+   *Generates:* `tsne_evolution_final_v2.png`
 
-3. **Online Flight Evaluation (Fig 1-3: Flight Performance)**
-   Runs missions under various wind speeds:
+3. **Online Flight Evaluation (Disturbance Estimation & Trajectories)**
+   Generates the main trajectory layouts and disturbance estimation plots (2.0Hz filtered true estimator bounds).
    ```bash
    conda activate fcml
-   bash scripts/run_evaluations_mission.sh
+   python scripts/evaluation/plot_comparison_mission.py
    ```
+   *Generates:* `fig2_tracking_trajectory_grid.png`, `fig3_disturbance_grid_x/y/z.png`
 
-4. **Feature Clustering Analysis (Fig 4-5)**
+4. **Online Ablation: Triplet vs MSE (High-density text annotation)**
+   Compares the online flight RMSE directly atop the time-series trajectory error curves.
    ```bash
    conda activate fcml
-   python scripts/evaluation/visualize_feature_clusters.py
+   python scripts/evaluation/compare_online_triplet_vs_mse.py
    ```
+   *Generates:* `fig_triplet_vs_mse_online.png`
 
 5. **Ki Parameter Sweep (Control Parameter Analysis)**
    Reads simulation metrics to assess optimal integral gain:

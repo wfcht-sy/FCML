@@ -1,0 +1,10 @@
+controller_type: FCML
+epochs: 300
+intent_lambda: null
+lambda_triplet: 1.0
+lr: 0.003
+output_alpha: null
+r_gain: null
+reg_lambda: 1.0e-05
+target_alpha: null
+track_weight: null
