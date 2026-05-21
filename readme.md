@@ -108,13 +108,18 @@ bash scripts/extract_logs.sh
    ```
    *Generates:* `fig_triplet_vs_mse_online.png`
 
-5. **Ki Parameter Sweep (Control Parameter Analysis)**
+6. **Ki Parameter Sweep (Control Parameter Analysis)**
    Reads simulation metrics to assess optimal integral gain:
    ```bash
    conda activate fcml
    python scripts/evaluation/simulate_Ki_sweep.py
    python scripts/evaluation/plot_Ki_sweep.py
    ```
+
+## Code Refactoring & Improvements
+1. **Object-Oriented Controllers**: `online_mission_compare.py` uses a clean `BaseOffboardControl` inheritance model, grouping parameters for Baseline, INDI, L1, and Learning controllers independently.
+2. **Component Extraction**: `VirtualWaypointNavigator` and `KinematicSmoother` have been modularized into separate files for better code reuse.
+3. **Ablation-Driven Architecture Justification**: Instead of simply unifying the FCML model with Neural-Fly, we prove our 4-layer architectural superiority via the isolated `run_backbone_ablation.py` suite.
 
 ## Directory Structure
 
@@ -135,9 +140,10 @@ FCML
 
 ### Naming Conventions
 
-| Code Name      | Description                                |
-|----------------|--------------------------------------------|
-| `FCML`         | FCML proposed method (DTW-Triplet alignment)|
-| `Neural-Fly`   | Original Neural-Fly with DAIML (baseline)  |
-| `Baseline`     | Standard PID controller                    |
-| `INDI`         | Incremental Nonlinear Dynamic Inversion    |
+| Code Name        | Description                                |
+|------------------|--------------------------------------------|
+| `FCML`           | FCML proposed method (DTW-Triplet alignment)|
+| `FCML_NoTriplet` | FCML backbone trained with MSE loss only   |
+| `Neural-Fly`     | Original Neural-Fly with DAIML (baseline)  |
+| `Baseline`       | Standard PID controller                    |
+| `INDI`           | Incremental Nonlinear Dynamic Inversion    |

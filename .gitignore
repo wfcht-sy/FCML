@@ -22,9 +22,6 @@ checkpoints/
 processed_data/
 !processed_data/.gitkeep
 
-# 忽略 figures 文件夹
-figures/
-!figures/.gitkeep
 
 # 日志和输出
 *.log
