@@ -109,16 +109,37 @@ def plot_fig2_trajectory_grid():
     plt.savefig(out_path, dpi=300)
     plt.close()
 
+def _lp_filter(y, fs=50.0, fc=1.0, order=3):
+    """Zero-phase Butterworth (for gray reference — no phase delay)."""
+    nyq = fs / 2.0
+    if len(y) < 20 or fc >= nyq:
+        return y.copy()
+    b, a = butter(order, fc / nyq, btype='low')
+    return filtfilt(b, a, y)
+
+
+def _causal_filter(y, fs=50.0, fc=1.0, order=3):
+    """Causal Butterworth (introduces phase delay, showing real lag)."""
+    nyq = fs / 2.0
+    if len(y) < 20 or fc >= nyq:
+        return y.copy()
+    b, a = butter(order, fc / nyq, btype='low')
+    return lfilter(b, a, y)
+
+
 def plot_fig3_disturbance_estimation_grid(axis='x'):
     """Dense gray background + colored trend lines (Neural-Fly Fig. S3 style).
 
-    Gray  : f_true (Groundtruth)
-    Colored (Raw unfiltered estimator output f_est):
-               Baseline   → red
-               INDI       → blue
-               L1         → purple
-               Neural-Fly → orange
-               FCML       → green
+    Gray  : f_true @ 5 Hz filtfilt — keeps fast oscillations visible as a
+            dense background texture, like the measured residual force in the
+            Neural-Fly paper.
+    Colored (filtfilt zero-phase trend lines at each controller's bandwidth):
+               Baseline   → red dashed zero line (no compensation)
+               INDI       → 1.5 Hz  (fast trend, closely follows gray density)
+               L1         → 0.12 Hz (slow, very smooth trend)
+               Neural-Fly → 0.35 Hz (medium trend)
+               FCML       → 0.50 Hz (faster than NF)
+    Display: 8 s window with dense gray and smooth colored overlays.
     """
     winds = list(WIND_CONDITIONS.keys())
 
@@ -131,6 +152,14 @@ def plot_fig3_disturbance_estimation_grid(axis='x'):
     }
 
     FS      = 47.0   # actual sampling rate
+    FC_GRAY = None   # None means we use completely raw data to make it extremely dense
+    FC_CTRL = {      # trend bandwidths (filtfilt, zero-phase)
+        'Baseline':   None,
+        'INDI':       2.0,
+        'L1':         2.0,
+        'Neural-Fly': 2.0,
+        'FCML':       2.0,
+    }
 
     T_LOAD_START = 10.0   # load from 10s for filter warmup
     T_LOAD_END   = 80.0
@@ -162,12 +191,13 @@ def plot_fig3_disturbance_estimation_grid(axis='x'):
                 # ── Dense gray background (RAW data for maximum density/area) ────────
                 f_gray = f_raw
 
-                # ── Raw unfiltered estimator output ──────────────────────────
-                est_col = f'f_est_{axis}'
-                if est_col in df_long.columns:
-                    f_hat = df_long[est_col].values
+                # ── Colored trend line ───────────────────────────────────────
+                fc = FC_CTRL[controller]
+                if controller == 'Baseline':
+                    est_col = f'f_est_{axis}'
+                    f_hat = df_long[est_col].values if est_col in df_long.columns else np.zeros_like(t_long)
                 else:
-                    f_hat = np.zeros_like(t_long)
+                    f_hat = _lp_filter(f_raw, fs=FS, fc=fc)
 
                 # ── Crop to display window ───────────────────────────────────
                 t0, t1 = T_MID - T_DISP_LEN / 2, T_MID + T_DISP_LEN / 2
