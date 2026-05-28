@@ -7,17 +7,17 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'modify0513', 'FCML')))
 
 try:
-    from scripts.offline.models import PhiNetwork, PhiNetworkFCML, AdaptiveControllerModel
+    from scripts.offline.models import PhiNetwork, PhiNet, AdaptiveControllerModel
     from scripts.missions.online_mission_compare import BaseOffboardControl, BaselineController, get_controller
 except ImportError:
     # Try alternate path if running from root
-    from modify0513.FCML.scripts.offline.models import PhiNetwork, PhiNetworkFCML, AdaptiveControllerModel
+    from modify0513.FCML.scripts.offline.models import PhiNetwork, PhiNet, AdaptiveControllerModel
     from modify0513.FCML.scripts.missions.online_mission_compare import BaseOffboardControl, BaselineController, get_controller
 
 def test_network_alignment():
     print("=== Testing Network Backbone Alignment ===")
     nf_model = PhiNetwork()
-    fcml_model = PhiNetworkFCML()
+    fcml_model = PhiNet()
     
     x = torch.randn(2, 11)
     

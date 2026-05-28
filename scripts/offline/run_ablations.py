@@ -1,16 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-原始消融实验运行器（两组对比，用于主图训练曲线）:
-  [1] original  - 纯 MSE 基线 (λ_triplet=0)
-  [2] fcml      - 完整 FCML   (λ_triplet=1.0)
 
-输出:
-  training_results/curve_original.csv  → plot_training_curve.py 使用
-  training_results/curve_fcml.csv      → plot_training_curve.py 使用
-  checkpoints/best_model.pth           → online_mission_compare.py 加载
 
-注意: 此脚本不影响 backbone_ablation 实验，也不影响 NF 权重。
 """
 
 import os
@@ -49,8 +41,6 @@ def run_training_and_extract(lambda_val, scheme_name):
 
 
 if __name__ == "__main__":
-    # 1. 纯 MSE 基线（无 Triplet 损失）
     run_training_and_extract(0.0, "original")
-    # 2. 完整 FCML（含 Triplet 损失）
     run_training_and_extract(1.0, "fcml")
     print("\nAll ablation experiments completed! Run plot_training_curve.py to view the comparison.")

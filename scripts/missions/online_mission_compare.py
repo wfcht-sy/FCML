@@ -51,9 +51,6 @@ def plot_fig2_trajectory_grid():
     ref_x = 4.0 * np.sin(theta_ref)
     ref_y = 4.0 * np.sin(theta_ref) * np.cos(theta_ref)
     
-    # 颜色映射统一范围 (统一转换为 cm 单位，上限缩小以提升色阶对比度)
-    err_vmax = 80.0 # 设置上限为 80 cm，使得大部分主体误差落在中间绿色区间
-    cmap = plt.get_cmap('jet') # 类似 Neural-Fly 采用的热力图色条
     norm = plt.Normalize(vmin=0, vmax=err_vmax)
                              
     for i, wind_key in enumerate(winds):
@@ -67,10 +64,8 @@ def plot_fig2_trajectory_grid():
             if df is not None and not df.empty:
                 df_steady = df[(df['time'] >= 15.0) & (df['time'] <= 85.0)]
                 if not df_steady.empty:
-                    # 计算误差映射作为颜色, 并转换为 cm 单位
                     error_norm = np.linalg.norm(df_steady[['pos_err_x', 'pos_err_y', 'pos_err_z']].values, axis=1) * 100.0
                     
-                    # 构造线段
                     points = np.array([df_steady['p_x'].values, df_steady['p_y'].values]).T.reshape(-1, 1, 2)
                     segments = np.concatenate([points[:-1], points[1:]], axis=1)
                     
@@ -87,16 +82,13 @@ def plot_fig2_trajectory_grid():
                 ax.set_xlabel('North (X) [m]', fontsize=12, fontweight='bold')
                 
             ax.set_aspect('equal', 'box')
-            # 根据真实轨迹大小设定刻度范围
             ax.set_xlim(-6, 6)
             ax.set_ylim(-4, 4)
             ax.tick_params(labelsize=10)
             
     plt.tight_layout()
-    # 预留顶部空间放置通用标题，以及右侧/右上部放置 Colorbar
     fig.subplots_adjust(top=0.92, right=0.9)
     
-    # 放置 Colorbar
     cbar_ax = fig.add_axes([0.92, 0.15, 0.015, 0.7]) # [left, bottom, width, height]
     sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])

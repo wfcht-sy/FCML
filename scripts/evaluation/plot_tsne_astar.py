@@ -17,16 +17,16 @@ import warnings
 
 warnings.filterwarnings("ignore")
 
-from scripts.offline.models import PhiNetworkFCML, PhiNetwork as PhiNetworkNF
+from scripts.offline.models import PhiNet, PhiNetwork as PhiNetworkNF
 
 # ================= Configuration =================
 MODEL_PATHS = {
     "Epoch 0 (Initial)": os.path.join(TSNE_CKPT_DIR, "tsne_model_epoch_0.pth"),
-    "Mid (No Triplet)": os.path.join(TSNE_CKPT_DIR, "notriplet", "tsne_model_epoch_mid.pth"),
-    "Mid (With Triplet)": os.path.join(TSNE_CKPT_DIR, "tsne_model_epoch_mid.pth"),
-    "Final (No Triplet)": os.path.join(TSNE_CKPT_DIR, "notriplet", "best_model.pth"),
-    "Final (With Triplet)": os.path.join(CHECKPOINTS_DIR, "best_model.pth"),
-    "Final (Neural-Fly)": os.path.join(CHECKPOINTS_DIR, "neural_fly_daiml_best.pth")
+    "Epoch 150 (No Triplet)": os.path.join(TSNE_CKPT_DIR, "notriplet", "tsne_model_epoch_mid.pth"),
+    "Epoch 150 (With Triplet)": os.path.join(TSNE_CKPT_DIR, "tsne_model_epoch_mid.pth"),
+    "Final (Epoch 300, No Triplet)": os.path.join(TSNE_CKPT_DIR, "notriplet", "best_model.pth"),
+    "Final (Epoch 300, With Triplet)": os.path.join(CHECKPOINTS_DIR, "best_model.pth"),
+    "Final (Epoch 300, Neural-Fly)": os.path.join(CHECKPOINTS_DIR, "neural_fly_daiml_best.pth")
 }
 
 DATA_CSV = _DTW_CSV
@@ -128,7 +128,7 @@ def main():
         if "Neural-Fly" in model_name:
             model = PhiNetworkNF(input_dim=11, basis_dim=8)
         else:
-            model = PhiNetworkFCML(input_dim=11, basis_dim=8)
+            model = PhiNet(input_dim=11, basis_dim=8)
             
         if os.path.exists(pth_path):
             ckpt = torch.load(pth_path, map_location='cpu', weights_only=True)

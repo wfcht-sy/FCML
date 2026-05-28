@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-FCML 离线训练脚本 (DTW-Triplet)
-核心设计:
-1. [FP64 双精度] 全局强制 float64，消除截断误差，配合 reg_lambda=1e-5 极限探底。
-2. [维度隔离] 仅对前 7 维动态特征做 Triplet 流形约束，彻底释放第 8 维常数偏置。
-3. [正交初始化] 确保起步快速收敛，配合 Cosine 退火平滑降落。
-4. [Triplet 指数衰减] decay=0.85，后期 Triplet 权重趋近于 0，MSE 独立探底。
 """
 
 import torch
@@ -57,9 +51,9 @@ class DTWTripletDataset(Dataset):
 # ================== FCML Network (Inline Definition, matches testmodel1 exactly) ==================
 # 4-layer architecture: 50->60->50->(BASIS_DIM-1), NO spectral norm.
 # The constant bias 1.0 is appended as the final dimension (physical resistance offset).
-class PhiNetworkFCML(nn.Module):
+class PhiNet(nn.Module):
     def __init__(self, input_dim=11, basis_dim=8):
-        super(PhiNetworkFCML, self).__init__()
+        super(PhiNet, self).__init__()
         self.fc1 = nn.Linear(input_dim, 50)
         self.fc2 = nn.Linear(50, 60)
         self.fc3 = nn.Linear(60, 50)
@@ -79,7 +73,7 @@ class NeuralFlyLightning(pl.LightningModule):
     def __init__(self, lr=3e-3, lambda_triplet=1.0, reg_lambda=1e-5, epochs=300):
         super().__init__()
         self.save_hyperparameters()
-        self.phi_net = PhiNetworkFCML(INPUT_DIM, BASIS_DIM)
+        self.phi_net = PhiNet(INPUT_DIM, BASIS_DIM)
         self.mse_fn = nn.MSELoss()
         # Minimal margin (0.05) for fine-grained feature separation
         self.triplet_fn = nn.TripletMarginLoss(margin=0.05, p=2, swap=True)

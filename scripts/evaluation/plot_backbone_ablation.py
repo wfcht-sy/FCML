@@ -8,7 +8,7 @@ produces a side-by-side comparison figure showing:
   - Validation MSE convergence for all three groups (log scale)
   - A bar chart of the best val_mse per group
 
-All groups use the official Neural-Fly Phi_Net backbone (PhiNetworkFCML).
+All groups use the official Neural-Fly Phi_Net backbone (PhiNet).
 The only variable is the training paradigm (loss function).
 
 Output: figures/fig_backbone_ablation.png

@@ -1,6 +1,6 @@
 import torch
 import os
-from scripts.offline.models import PhiNetwork, PhiNetworkFCML
+from scripts.offline.models import PhiNetwork, PhiNet
 
 ckpt_path = 'checkpoints/neural_fly_daiml_best.pth'
 ckpt = torch.load(ckpt_path, map_location='cpu')
@@ -21,9 +21,9 @@ try:
 except Exception as e:
     print("PhiNetwork failed:", e)
 
-model2 = PhiNetworkFCML(input_dim=11, basis_dim=8)
+model2 = PhiNet(input_dim=11, basis_dim=8)
 try:
     model2.load_state_dict(state_dict)
-    print("PhiNetworkFCML loaded successfully")
+    print("PhiNet loaded successfully")
 except Exception as e:
-    print("PhiNetworkFCML failed:", e)
+    print("PhiNet failed:", e)
