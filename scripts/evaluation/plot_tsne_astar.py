@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
-from config import TSNE_CKPT_DIR, CHECKPOINTS_DIR, DTW_CSV as _DTW_CSV, TSNE_RESULTS_DIR, FIGURES_DIR
+from config import TSNE_CKPT_DIR, CHECKPOINTS_DIR, DTW_CSV as _DTW_CSV, TSNE_RESULTS_DIR, FIGURES_DIR, PROCESSED_DIR
 
 
 import torch
@@ -33,20 +33,46 @@ DATA_CSV = _DTW_CSV
 OUTPUT_DIR = TSNE_RESULTS_DIR
 
 WIND_CONDITIONS_CONFIG = {
-    '0.0 m/s': '#1f77b4',  
-    '4.2 m/s': '#2ca02c',  
-    '8.5 m/s': '#ff7f0e',  
-    '12.1 m/s': '#d62728'  
+    '0.0 m/s': '#1f77b4',  # blue
+    '2.4 m/s': '#17becf',  # cyan
+    '4.2 m/s': '#2ca02c',  # green
+    '6.0 m/s': '#bcbd22',  # olive/yellow
+    '8.5 m/s': '#ff7f0e',  # orange
+    '12.1 m/s': '#d62728'  # red
 }
 WIND_SPEEDS = list(WIND_CONDITIONS_CONFIG.keys())
 NUM_WINDS = len(WIND_SPEEDS)
 
-SAMPLES_PER_WIND = 350  
+SAMPLES_PER_WIND = 300  
 VIRTUAL_WINDOW = 60      
 REG_LAMBDA = 5e-3        
 FORCE_SCALE = 6.0
 
 torch.set_default_dtype(torch.float64)
+
+def get_combined_df(original_df):
+    train_files = [
+        'processed_train_20wind.csv', 
+        'processed_train_50wind.csv'
+    ]
+    frames = [original_df]
+    for f in train_files:
+        path = os.path.join(PROCESSED_DIR, f)
+        if os.path.exists(path):
+            df = pd.read_csv(path)
+            rename_map = {
+                'v_x': 'A_v_x', 'v_y': 'A_v_y', 'v_z': 'A_v_z',
+                'q_w': 'A_q_w', 'q_x': 'A_q_x', 'q_y': 'A_q_y', 'q_z': 'A_q_z',
+                'pwm_1': 'A_pwm_1', 'pwm_2': 'A_pwm_2', 'pwm_3': 'A_pwm_3', 'pwm_4': 'A_pwm_4',
+                'f_x': 'A_f_x', 'f_y': 'A_f_y', 'f_z': 'A_f_z'
+            }
+            df = df.rename(columns=rename_map)
+            if 'timestamp' in df.columns and len(df) > 2000:
+                df = df.iloc[1000:-500].reset_index(drop=True)
+            cols = list(rename_map.values())
+            df = df[cols]
+            frames.append(df)
+    return pd.concat(frames, ignore_index=True)
 
 # ================= Core Feature Extraction =================
 def generate_robust_a_stars(model, df):
@@ -117,6 +143,7 @@ def generate_robust_a_stars(model, df):
 def main():
     print(f"Loading dataset: {DATA_CSV}")
     df = pd.read_csv(DATA_CSV)
+    df = get_combined_df(df)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     
     fig, axes = plt.subplots(2, 3, figsize=(18, 12))
