@@ -6,19 +6,19 @@ Online Tracking Comparison: DTW-Triplet (FCML) vs MSE-only (FCML_NoTriplet).
 This script completes the ablation study by comparing online flight tracking
 performance between the two FCML variants that share the same backbone:
   - [D] FCML         : official Phi_Net + DTW-Triplet loss  (full method)
-  - [B] FCML_NoTrip  : official Phi_Net + MSE-only loss     (triplet ablation)
+  - [B] NoTriplet    : official Phi_Net + MSE-only loss     (triplet ablation)
 
 Usage
 -----
 Step 1 – Generate MSE-only flight logs (skip if already done):
   Copy the MSE-only checkpoint to a known path, then run the online mission:
 
-    cp training_results/backbone_ablation/run_ours_no_triplet/best_model.pth \\
-       checkpoints/fcml_notriplet.pth
+    cp training_results/backbone_ablation/run_ours_no_triplet/best_model.pth \
+       checkpoints/notriplet.pth
 
   Then for each wind condition, run:
-    python scripts/missions/online_mission_compare.py \\
-      --controller FCML_NoTriplet --wind <wind_tag>
+    python scripts/missions/online_mission_compare.py \
+      --controller NoTriplet --wind <wind_tag>
 
 Step 2 – Run this plot script:
     python scripts/evaluation/compare_online_triplet_vs_mse.py
@@ -44,7 +44,7 @@ os.makedirs(FIGURES_DIR, exist_ok=True)
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 CTRL_D   = "FCML"           # [D] DTW-Triplet
-CTRL_B   = "FCML_NoTriplet" # [B] MSE-only
+CTRL_B   = "NoTriplet"      # [B] MSE-only
 
 WIND_CONDITIONS = [
     ("nowind",       "0.0 m/s"),
@@ -118,18 +118,14 @@ def compare_online():
         for m in missing:
             print(f"    {m}")
         print("\n  Follow the Step 1 instructions in this script's docstring")
-        print("  to generate the missing FCML_NoTriplet logs.")
+        print("  to generate the missing NoTriplet logs.")
         if not any(data[CTRL_B].values()):
-            print("\n  [ABORT] No FCML_NoTriplet logs found at all. Cannot plot comparison.")
+            print("\n  [ABORT] No NoTriplet logs found at all. Cannot plot comparison.")
             _print_summary(data)
             return
 
     n_wind = len(WIND_CONDITIONS)
     fig, axes = plt.subplots(1, n_wind, figsize=(4 * n_wind, 4.5))
-    fig.suptitle(
-        "Online Tracking: DTW-Triplet vs MSE-only (unified backbone)",
-        fontsize=14, fontweight="bold"
-    )
 
     # ── Top row: time-series ───────────────────────────────────────────────
     for col, (wind_tag, wind_label) in enumerate(WIND_CONDITIONS):
@@ -172,9 +168,10 @@ def compare_online():
                 )
 
         if plotted_any and col == 0:
-            ax.legend(fontsize=8, loc="upper right", framealpha=0.85)
+            handles, labels = ax.get_legend_handles_labels()
 
-    plt.tight_layout()
+    fig.legend(handles, labels, loc='lower center', bbox_to_anchor=(0.5, 0.0), ncol=2, frameon=False, fontsize=11)
+    plt.tight_layout(rect=[0, 0.08, 1, 1])
     out_path = os.path.join(FIGURES_DIR, "fig_triplet_vs_mse_online.png")
     plt.savefig(out_path, dpi=300, bbox_inches="tight")
     print(f"\n  Figure saved: {out_path}")

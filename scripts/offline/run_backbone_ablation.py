@@ -4,7 +4,7 @@
 Loss Function Ablation Experiment Runner (fully isolated from the main training pipeline).
 
 All groups share the SAME backbone: official Neural-Fly Phi_Net architecture
-(ref: aerorobotics/neural-fly/mlmodel.py), implemented as PhiNet.
+(ref: aerorobotics/neural-fly/mlmodel.py), implemented as PhiNetworkFCML.
 The ablation studies the TRAINING PARADIGM (loss function) only.
 
 Three experimental groups:
@@ -126,7 +126,7 @@ def print_summary():
 if __name__ == "__main__":
     print("="*62)
     print("  Loss Function Ablation Experiment  (3 groups)")
-    print("  Backbone: official Neural-Fly Phi_Net (PhiNet) for ALL groups")
+    print("  Backbone: official Neural-Fly Phi_Net (PhiNetworkFCML) for ALL groups")
     print("  All outputs go to: training_results/backbone_ablation/")
     print("  checkpoints/ and main curve files will NOT be modified.")
     print("="*62)
