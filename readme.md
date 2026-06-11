@@ -117,7 +117,7 @@ bash scripts/extract_logs.sh
    ```
 
 7. **Tracking Error Data Extraction (Table 1 Generation)**
-   Extracts the Cross-Track RMSE and Mean errors for all wind conditions into a single CSV table (matches Neural-Fly paper format).
+   Extracts the Cross-Track RMSE and Mean errors for all wind conditions into a single CSV table.
    ```bash
    conda activate fcml
    python scripts/evaluation/export_rmse_table.py
@@ -125,10 +125,9 @@ bash scripts/extract_logs.sh
    *Generates:* `table_results/tracking_error_statistics.csv`
 
 ## Code Refactoring & Compliance
-1. **Academic Integrity Guarantee**: We enforce strict plotting protocols by exclusively visualizing raw compensation outputs. All post-processing filters (e.g., zero-phase / causal Butterworth) have been entirely removed from the plotting pipeline, establishing an uncompromising standard for objective performance presentation.
-2. **Object-Oriented Controllers**: `online_mission_compare.py` uses a clean `BaseOffboardControl` inheritance model, unifying baseline control parameters (e.g., $K_p$, $K_d$) across Baseline, INDI, L1, and Learning controllers to provide a rigorously fair testing ground.
-3. **Component Extraction**: `VirtualWaypointNavigator` and `KinematicSmoother` have been modularized into separate files for better code reuse.
-4. **Ablation-Driven Architecture Justification**: Instead of simply unifying the FCML model with Neural-Fly, we prove our 4-layer architectural superiority via the isolated `run_backbone_ablation.py` suite. All baseline models now strictly share the exact same `PhiNet` architecture, eliminating structural confounds.
+1. **Object-Oriented Controllers**: `online_mission_compare.py` uses a clean `BaseOffboardControl` inheritance model, unifying baseline control parameters (e.g., $K_p$, $K_d$) across Baseline, INDI, L1, and Learning controllers to provide a rigorously fair testing ground.
+2. **Component Extraction**: `VirtualWaypointNavigator` and `KinematicSmoother` have been modularized into separate files for better code reuse.
+3. **Ablation-Driven Architecture Justification**: Instead of simply unifying the FCML model with Neural-Fly, we prove our 4-layer architectural superiority via the isolated `run_backbone_ablation.py` suite. All baseline models now strictly share the exact same `PhiNet` architecture, eliminating structural confounds.
 
 ## Directory Structure
 
