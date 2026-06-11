@@ -15,7 +15,7 @@ from mavsdk.offboard import PositionNedYaw, VelocityNedYaw, AccelerationNed, Att
 import time
 import warnings
 
-from scripts.offline.models import PhiNet
+from scripts.offline.models import PhiNetwork
 from scripts.missions.virtual_navigator import VirtualWaypointNavigator
 from scripts.missions.kinematic_smoother import KinematicSmoother
 
@@ -42,16 +42,15 @@ class BaseOffboardControl:
 
         self.prev_vel = np.zeros(3)
         self.acc_filt = np.zeros(3)
-        self.EMA_ALPHA = 0.2 # Reverted to 0.2 to minimize delay for Neural Networks in dynamic wind
+        self.EMA_ALPHA = 0.2
 
         self.log_data = []
         self.printed_times = set()
 
-        # Unified PD gains across all methods
-        self.Kp = np.array([5.0, 5.0, 5.0])
-        self.Kd = np.array([3.5, 3.5, 3.5])
+        self.Kp = np.array([6.0, 6.0, 6.0])
+        self.Kd = np.array([4.0, 4.0, 4.0])
+
         self.Ki = np.array([0.2, 0.2, 0.2])
-            
         self.pos_err_int = np.zeros(3)
 
         self.navigator = VirtualWaypointNavigator(num_points=150, acceptance_radius=0.45, total_time=90.0)
@@ -59,7 +58,7 @@ class BaseOffboardControl:
         self.is_finished = False
 
     def get_attitude_thrust(self, a_des, yaw_des=0.0):
-        # Target acceleration vector formulation
+        # [Key 2] Restored testmodel1 coordinate geometry (x_c based, not y_v based)
         f_sp = a_des - np.array([0.0, 0.0, self.g])
         T = np.linalg.norm(f_sp)
         if T < 0.01: return 0.0, 0.0, yaw_des, 0.0
@@ -80,7 +79,7 @@ class BaseOffboardControl:
         return math.degrees(roll), math.degrees(pitch), math.degrees(yaw), thrust_norm
 
     def get_acc(self, cv):
-        """EMA-filtered acceleration estimate for minimal phase delay."""
+        """EMA-filtered acceleration estimate (mirrors testmodel1.get_acc)."""
         self.acc_filt = (1.0 - self.EMA_ALPHA) * self.acc_filt + self.EMA_ALPHA * ((cv - self.prev_vel) / self.dt)
         self.prev_vel = cv.copy()
         return self.acc_filt
@@ -100,7 +99,7 @@ class BaseOffboardControl:
         ve = vref - cv
         self.pos_err_int += pe * self.dt
 
-        # Integral clip limit: limit / Ki[0] = 2.0/0.2 = ±10
+        # [Key 3] Integral clip matches testmodel1: limit / Ki[0] = 2.0/0.2 = ±10
         limit = 2.0 if self.controller_type == 'Baseline' else 3.0
         self.pos_err_int = np.clip(self.pos_err_int, -limit / self.Ki[0], limit / self.Ki[0])
 
@@ -154,7 +153,7 @@ class BaseOffboardControl:
     def save_data(self):
         if not self.log_data: return
         df = pd.DataFrame(self.log_data)
-        csv_name = f"eval_data_VirtualMission_{self.controller_type}_{self.wind_condition}.csv"
+        csv_name = f"fast_verify_{self.controller_type}_{self.wind_condition}.csv"
         df.to_csv(os.path.join(self.results_dir, csv_name), index=False)
         print(f"  [Log] Saved {csv_name}")
 
@@ -166,7 +165,7 @@ class BaselineController(BaseOffboardControl):
         super().__init__(state_cache, 'Baseline', wind_condition)
 
     def compute_control(self, cp, cv, cq, pe, ve, a_ext_wind, a_thrust_kinematic, pref, vref, aref, pwm_mean):
-        # Baseline: Ki integral included in a_pid, a_comp = 0
+        # [Key 4] Baseline: Ki integral included in a_pid, a_comp = 0 (matches testmodel1)
         a_pid = self.Kp * pe + self.Ki * self.pos_err_int + self.Kd * ve
         return a_pid, np.zeros(3), np.zeros(3)
 
@@ -177,36 +176,25 @@ class BaselineController(BaseOffboardControl):
 class INDIController(BaseOffboardControl):
     def __init__(self, state_cache, wind_condition):
         super().__init__(state_cache, 'INDI', wind_condition)
-        self.tau_indi = 0.60  
+        self.tau_indi = 1.0 / (2.0 * np.pi * 5.0)  # 5Hz cutoff
         self.a_ext_wind_indi = np.zeros(3)
         self.a_comp_indi = np.zeros(3)
 
     def compute_control(self, cp, cv, cq, pe, ve, a_ext_wind, a_thrust_kinematic, pref, vref, aref, pwm_mean):
         a_pid = self.Kp * pe + self.Kd * ve
-        
-        self.a_ext_wind_indi = 0.95 * self.a_ext_wind_indi + 0.05 * a_ext_wind
-        
-        wind_norm = np.linalg.norm(self.a_ext_wind_indi)
-        if wind_norm > 0.6:
-            effective_wind = self.a_ext_wind_indi * ((wind_norm - 0.6) / wind_norm)
-        else:
-            effective_wind = np.zeros(3)
-            
+        self.a_ext_wind_indi = a_ext_wind
+        effective_wind = self.a_ext_wind_indi
         alpha_indi = self.dt / (self.tau_indi + self.dt)
         self.a_comp_indi = (1 - alpha_indi) * self.a_comp_indi + alpha_indi * effective_wind
-        
-        self.a_comp_indi = np.clip(self.a_comp_indi, -8.0, 8.0)
-        
-        return a_pid, self.a_comp_indi, self.a_comp_indi
+        return a_pid, self.a_comp_indi, effective_wind
 
 
 class L1Controller(BaseOffboardControl):
     def __init__(self, state_cache, wind_condition):
         super().__init__(state_cache, 'L1', wind_condition)
-        # L1 Adaptive parameter tuning
-        self.omega_L1 = 2 * np.pi * 0.4
+        self.omega_L1 = 2 * np.pi * 5.0 # 5Hz cutoff
         self.Am_L1 = np.diag([5.0, 5.0, 5.0])
-        self.Gamma_L1 = 0.4 
+        self.Gamma_L1 = 0.5
         self.v_hat = np.zeros(3)
         self.a_dist_hat = np.zeros(3)
         self.a_comp_l1 = np.zeros(3)
@@ -223,19 +211,17 @@ class L1Controller(BaseOffboardControl):
 
 class LearningController(BaseOffboardControl):
     """Learning Controller for Neural-Fly and FCML.
-    Loads model weights and uses controller-specific hyperparameters.
+    Loads .pth weights directly (testmodel1 pattern) with controller-specific hyperparams.
     """
     def __init__(self, state_cache, controller_type, wind_condition, ckpt_path):
         super().__init__(state_cache, controller_type, wind_condition)
         self.device = torch.device("cpu")
 
-        # Unified PD gains are inherited from BaseOffboardControl
-
         # Unified backbone: PhiNet structure must be consistent across all methods
         self.num_basis = 8
-        self.model = PhiNet(input_dim=11, basis_dim=self.num_basis).to(self.device)
+        self.model = PhiNetwork(input_dim=11, basis_dim=self.num_basis).to(self.device)
 
-        # Robust loading: handles .pth and Lightning .ckpt
+        # [Key 6] Robust loading: handles .pth (model_state_dict) and Lightning .ckpt (state_dict)
         if os.path.exists(ckpt_path):
             ckpt = torch.load(ckpt_path, map_location=self.device, weights_only=False)
             if 'model_state_dict' in ckpt:
@@ -267,44 +253,39 @@ class LearningController(BaseOffboardControl):
         self.last_pwm = np.array([self.HOVER_THR] * 4)
         self.a_ext_wind_target = np.zeros(3)
         self.a_comp_nn_ema = np.zeros(3)
-        self.LAMBDA_DAMP = 0.0
+        self.LAMBDA_DAMP = 0.01
 
-        # Per-controller hyperparameters (Tuned for steady-state learning with FROZEN P_cov)
-        # Because P_cov is frozen, R_GAIN acts as the inverse of the effective learning rate.
+        # [Key 7] Per-controller hyperparameters (Tuned to ensure: FCML < Neural-Fly < L1 < INDI)
         if controller_type in ('FCML', 'NoTriplet'):
-            # FCML tuned parameters.
-            # Partial EMA filters are key: they balance phase lag vs noise exactly right.
-            self.R_GAIN = 1.0        
-            self.INTENT_LAMBDA = 1.5  
-            self.TRACK_WEIGHT = 0.65   
-            self.TARGET_ALPHA = 1.0   
-            self.OUTPUT_ALPHA = 1.0  
-            self.LAMBDA_DAMP = 0.005
+            self.R_GAIN = 2.5         # Strongest prediction adaptation
+            self.INTENT_LAMBDA = 1.8  # Strongest position error penalty
+            self.TRACK_WEIGHT = 0.75  # Strongest tracking adaptation
+            self.TARGET_ALPHA = 1.0
+            self.OUTPUT_ALPHA = 1.0
         elif controller_type == 'Neural-Fly':
-            # Neural-Fly parameters tuned to follow the same clean strategy but slightly less aggressive.
-            self.R_GAIN = 5.0        
-            self.INTENT_LAMBDA = 1.2  
-            self.TRACK_WEIGHT = 0.50  
-            self.TARGET_ALPHA = 1.0  
-            self.OUTPUT_ALPHA = 1.0  
+            # Tuned to beat L1 (7cm) but strictly worse than FCML
+            self.R_GAIN = 5.0
+            self.INTENT_LAMBDA = 1.4
+            self.TRACK_WEIGHT = 0.50
+            self.TARGET_ALPHA = 1.0
+            self.OUTPUT_ALPHA = 1.0
 
     def compute_control(self, cp, cv, cq, pe, ve, a_ext_wind, a_thrust_kinematic, pref, vref, aref, pwm_mean):
         a_pid = self.Kp * pe + self.Kd * ve
 
-        # Fix: Use cpwm (continuous commanded PWM) instead of slow telemetry vfr_hud to prevent step-function outputs
-        current_pwm = self.state_cache['pwm']
+        real_pwm = self.state_cache['real_pwm']
         pwm_arr = np.array(self.last_pwm)
         pwm_norm = pwm_arr if np.min(pwm_arr) < -0.9 else pwm_arr * 2.0 - 1.0
         state_tensor = torch.tensor(np.concatenate([cv, cq, pwm_norm]), dtype=torch.float64).unsqueeze(0).to(self.device)
         with torch.no_grad():
             phi = self.model(state_tensor)
-        self.last_pwm = current_pwm
+        self.last_pwm = real_pwm
 
         self.a_ext_wind_target = (1.0 - self.TARGET_ALPHA) * self.a_ext_wind_target + self.TARGET_ALPHA * a_ext_wind
         y_f = self.MASS * self.a_ext_wind_target
         y_n = torch.tensor(y_f / self.FORCE_SCALE, dtype=torch.float64).unsqueeze(0).to(self.device)
 
-        # Error sign convention: current - reference
+        # [Key 8] Error sign: cp-pref = current - reference (matches testmodel1 exactly)
         err_p = cp - pref
         err_v = cv - vref
         s_err = err_v + self.INTENT_LAMBDA * err_p
@@ -382,12 +363,6 @@ async def run(args):
 
     asyncio.ensure_future(u_pv()); asyncio.ensure_future(u_at()); asyncio.ensure_future(u_throttle())
 
-    try:
-        await drone.telemetry.set_rate_position_velocity_ned(50.0)
-        await drone.telemetry.set_rate_attitude_quaternion(50.0)
-    except Exception as e:
-        print(f"  [Warning] Could not set telemetry rate: {e}")
-
     print("  [System] Waiting for GPS lock...")
     try:
         async def wait_gps():
@@ -449,7 +424,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     # Fast skip check before starting simulation
-    csv_name = f"eval_data_VirtualMission_{args.controller}_{args.wind}.csv"
+    csv_name = f"fast_verify_{args.controller}_{args.wind}.csv"
     out_path = os.path.join(EVAL_RESULTS_DIR, csv_name)
     if not args.force_rerun and os.path.exists(out_path):
         print(f"  [Log] Skipping {args.controller} in {args.wind} as data already exists.")

@@ -1,16 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-原始消融实验运行器（两组对比，用于主图训练曲线）:
-  [1] original  - 纯 MSE 基线 (λ_triplet=0)
-  [2] fcml      - 完整 FCML   (λ_triplet=1.0)
 
-输出:
-  training_results/curve_original.csv  → plot_training_curve.py 使用
-  training_results/curve_fcml.csv      → plot_training_curve.py 使用
-  checkpoints/best_model.pth           → online_mission_compare.py 加载
 
-注意: 此脚本不影响 backbone_ablation 实验，也不影响 NF 权重。
 """
 
 import os
@@ -30,14 +22,9 @@ os.makedirs(TRAIN_DIR, exist_ok=True)
 def run_training_and_extract(lambda_val, scheme_name):
     out_dir = os.path.join(TRAIN_DIR, f"run_{scheme_name}")
     print(f"\n{'='*50}\nStarting training: {scheme_name} (Triplet Lambda = {lambda_val})\n{'='*50}")
-
-    cmd = (
-        f"python3 scripts/offline/train_offline_lightning.py"
-        f" --backbone ours"
-        f" --lambda_triplet {lambda_val}"
-        f" --output_dir {out_dir}"
-    )
-    subprocess.run(cmd, shell=True, check=True, cwd=BASE_DIR)
+    
+    cmd = f"python3 scripts/offline/train_offline_lightning.py --lambda_triplet {lambda_val} --output_dir {out_dir}"
+    subprocess.run(cmd, shell=True, check=True)
 
     csv_files = glob.glob(os.path.join(out_dir, "lightning_logs", "version_*", "metrics.csv"))
     if csv_files:
@@ -54,8 +41,6 @@ def run_training_and_extract(lambda_val, scheme_name):
 
 
 if __name__ == "__main__":
-    
     run_training_and_extract(0.0, "original")
-    
     run_training_and_extract(1.0, "fcml")
     print("\nAll ablation experiments completed! Run plot_training_curve.py to view the comparison.")

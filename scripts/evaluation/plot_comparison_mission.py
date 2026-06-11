@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
-from scipy.signal import butter, filtfilt, lfilter
 
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
@@ -42,6 +41,76 @@ def load_data(ctrl, wind):
         return pd.read_csv(file_path)
     return None
 
+
+def calculate_cross_track_rmse(df_steady, ref_x, ref_y):
+    import numpy as np
+    pts = np.vstack((df_steady['p_x'], df_steady['p_y'])).T
+    ref_pts = np.vstack((ref_x, ref_y)).T
+    distances = np.min(np.linalg.norm(pts[:, np.newaxis, :] - ref_pts[np.newaxis, :, :], axis=2), axis=1)
+    return np.sqrt(np.mean(distances**2))
+
+def plot_fig1_rmse_bar():
+    print("  -> Computing Cross-Track RMSE and generating Fig 1 Bar chart...")
+    import numpy as np
+    import matplotlib.pyplot as plt
+    theta_ref = np.linspace(0, 4 * np.pi, 2000)
+    ref_x = 4.0 * np.sin(theta_ref)
+    ref_y = 4.0 * np.sin(theta_ref) * np.cos(theta_ref)
+
+    rmse_data = {ctrl: [] for ctrl in CONTROLLERS}
+    valid_winds = []
+    
+    for wind_key, wind_label in WIND_CONDITIONS.items():
+        valid_winds.append(wind_label)
+        for ctrl in CONTROLLERS:
+            df = load_data(ctrl, wind_key)
+            if df is not None and not df.empty:
+                df_steady = df[(df['time'] >= 15.0) & (df['time'] <= 85.0)]
+                if not df_steady.empty:
+                    rmse = calculate_cross_track_rmse(df_steady, ref_x, ref_y)
+                    rmse_data[ctrl].append(rmse * 100.0)
+                else:
+                    rmse_data[ctrl].append(np.nan)
+            else: 
+                rmse_data[ctrl].append(np.nan)
+
+    x = np.arange(len(valid_winds))
+    width = 0.15
+    fig, ax = plt.subplots(figsize=(12, 6))
+    
+    COLORS = {
+        'Baseline': '#7f7f7f',
+        'INDI': '#1f77b4',
+        'L1': '#9467bd',
+        'Neural-Fly': '#ff7f0e',
+        'FCML': '#2ca02c'
+    }
+    
+    LABELS = {
+        'Baseline': 'Baseline PID',
+        'INDI': 'INDI',
+        'L1': 'L1 Adaptive',
+        'Neural-Fly': 'Neural-Fly (DAIML)',
+        'FCML': 'FCML (FCML)'
+    }
+    
+    for i, ctrl in enumerate(CONTROLLERS):
+        ax.bar(x + i*width - width*2, rmse_data[ctrl], width, label=LABELS.get(ctrl, ctrl), 
+               color=COLORS.get(ctrl, '#000000'), edgecolor='black', linewidth=1.5, zorder=3)
+
+    ax.set_ylabel('Cross-Track RMSE [cm]', fontweight='bold')
+    ax.set_xticks(x)
+    ax.set_xticklabels(valid_winds)
+    ax.set_axisbelow(True)
+    ax.grid(axis='y', linestyle='--', alpha=0.7, zorder=0)
+    
+    # Place legend at the bottom
+    ax.legend(loc='lower center', bbox_to_anchor=(0.5, -0.2), ncol=len(CONTROLLERS), frameon=False, fontsize=12)
+    
+    plt.tight_layout(rect=[0, 0.05, 1, 1])
+    plt.savefig(os.path.join(FIGURES_DIR, 'fig1_Mission_RMSE_Bar.png'), dpi=300, bbox_inches='tight')
+    plt.close(fig)
+
 def plot_fig2_trajectory_grid():
     winds = list(WIND_CONDITIONS.keys())
     fig, axes = plt.subplots(nrows=len(winds), ncols=len(CONTROLLERS), 
@@ -62,10 +131,10 @@ def plot_fig2_trajectory_grid():
                     errs = np.linalg.norm(df_s[['pos_err_x', 'pos_err_y', 'pos_err_z']].values, axis=1) * 100.0
                     global_max_err = max(global_max_err, errs.max())
     
-    # Map the color scale consistently across all methods
-    err_vmax = min(global_max_err, 100.0)
+    import matplotlib.colors as colors
+    # Use 'jet' colormap: low error (blue) to high error (red), matching academic standards
     cmap = plt.get_cmap('jet')
-    norm = plt.Normalize(vmin=0, vmax=err_vmax)
+    norm = colors.LogNorm(vmin=1.0, vmax=50.0)
                              
     for i, wind_key in enumerate(winds):
         for j, controller in enumerate(CONTROLLERS):
@@ -78,9 +147,13 @@ def plot_fig2_trajectory_grid():
             if df is not None and not df.empty:
                 df_steady = df[(df['time'] >= 15.0) & (df['time'] <= 85.0)]
                 if not df_steady.empty:
-                    # Absolute tracking error in cm (smooth over 1s to prevent misleading zero-crossings)
-                    raw_err = np.linalg.norm(df_steady[['pos_err_x', 'pos_err_y', 'pos_err_z']].values, axis=1) * 100.0
-                    error_norm = pd.Series(raw_err).rolling(window=47, min_periods=1, center=True).mean().values
+                    # Use Cross-Track Error (CTE) to match Neural-Fly paper visualization
+                    pts = np.vstack((df_steady['p_x'], df_steady['p_y'])).T
+                    ref_pts = np.vstack((ref_x, ref_y)).T
+                    distances = np.min(np.linalg.norm(pts[:, np.newaxis, :] - ref_pts[np.newaxis, :, :], axis=2), axis=1)
+                    error_norm = distances * 100.0
+                    
+                    error_norm = np.clip(error_norm, 1.0, 50.0)
                     
                     # Construct line segments
                     points = np.array([df_steady['p_x'].values, df_steady['p_y'].values]).T.reshape(-1, 1, 2)
@@ -91,6 +164,8 @@ def plot_fig2_trajectory_grid():
                     lc.set_linewidth(2.5)
                     line = ax.add_collection(lc)
 
+            if i == 0:
+                ax.set_title(controller, fontsize=15, fontweight='bold', pad=15)
             if j == 0:
                 ax.set_ylabel(f'{WIND_CONDITIONS[wind_key]}\nEast (Y) [m]', fontsize=12, fontweight='bold')
             if i == len(winds) - 1:
@@ -103,155 +178,135 @@ def plot_fig2_trajectory_grid():
             ax.tick_params(labelsize=10)
             
     plt.tight_layout()
-    # Leave space for Colorbar
+    # Leave top space for column titles, and right space for Colorbar
     fig.subplots_adjust(top=0.95, right=0.9)
     
     # Place Colorbar
     cbar_ax = fig.add_axes([0.92, 0.15, 0.015, 0.7]) # [left, bottom, width, height]
     sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])
-    cbar = fig.colorbar(sm, cax=cbar_ax)
-    cbar.set_label('Tracking Error (cm)', fontsize=14, fontweight='bold')
+    cbar = fig.colorbar(sm, cax=cbar_ax, ticks=[1, 3, 10, 30, 50])
+    cbar.ax.set_yticklabels(['1', '3', '10', '30', '>50'])
+    cbar.set_label('Tracking error [cm]', fontsize=14, fontweight='bold')
     cbar.ax.tick_params(labelsize=12)
     
+    # Title removed as requested
     out_path = os.path.join(FIGURES_DIR, 'fig2_tracking_trajectory_grid.png')
     plt.savefig(out_path, dpi=300)
     plt.close()
 
-def _lp_filter(y, fs=50.0, fc=1.0, order=3):
-    """Zero-phase Butterworth (for gray reference — no phase delay)."""
-    nyq = fs / 2.0
-    if len(y) < 20 or fc >= nyq:
-        return y.copy()
-    b, a = butter(order, fc / nyq, btype='low')
-    return filtfilt(b, a, y)
-
-
-def _causal_filter(y, fs=50.0, fc=1.0, order=3):
-    """Causal Butterworth (introduces phase delay, showing real lag)."""
-    nyq = fs / 2.0
-    if len(y) < 20 or fc >= nyq:
-        return y.copy()
-    b, a = butter(order, fc / nyq, btype='low')
-    return lfilter(b, a, y)
-
-
 def plot_fig3_disturbance_estimation_grid(axis='x'):
-    """Dense gray background + red trend lines (Exactly mimicking Neural-Fly Fig. S3)."""
+    """Dense gray background + colored trend lines.
+    Matches Neural-Fly paper aesthetic, saving independent images per axis.
+    """
     winds = list(WIND_CONDITIONS.keys())
 
-    # In Neural-Fly S3, all estimated forces are plotted in RED (dashed for baseline, solid for others)
     STYLE = {
-        'Baseline':   dict(color='#d62728', linestyle='--',  linewidth=1.8, alpha=0.95),
-        'INDI':       dict(color='#d62728', linestyle='-',   linewidth=1.2, alpha=0.85),
-        'L1':         dict(color='#d62728', linestyle='-',   linewidth=1.8, alpha=0.95),
-        'Neural-Fly': dict(color='#d62728', linestyle='-',   linewidth=1.8, alpha=0.95),
-        'FCML':       dict(color='#d62728', linestyle='-',   linewidth=1.8, alpha=0.95),
+        'Baseline':   dict(color='#d62728', linestyle='--',  linewidth=1.6, alpha=0.92),
+        'INDI':       dict(color='#1f77b4', linestyle='-',   linewidth=1.8, alpha=0.92),
+        'L1':         dict(color='#9467bd', linestyle='-',   linewidth=1.8, alpha=0.93),
+        'Neural-Fly': dict(color='#ff7f0e', linestyle='-',   linewidth=2.0, alpha=0.93),
+        'FCML':       dict(color='#2ca02c', linestyle='-',   linewidth=2.2, alpha=0.95),
     }
 
-    FS = 47.0
-    T_LOAD_START = 10.0
+    T_LOAD_START = 10.0   
     T_LOAD_END   = 80.0
-    T_DISP_LEN   = 10.0
-    T_MID        = 38.0
-    true_col = f'f_true_{axis}'
+    T_DISP_LEN   = 60.0    # Show overall trend
+    
+    WIND_T_MID = {
+        'online_test_nowind': 45.0,
+        'online_test_35wind': 45.0,
+        'online_test_70wind': 45.0,
+        'online_test_70p20sint': 45.0,
+        'online_test_100wind': 45.0
+    }
+
+    fig3_ctrls = [c for c in CONTROLLERS if c != 'Baseline']
 
     fig, axes = plt.subplots(
-        nrows=len(winds), ncols=len(CONTROLLERS),
-        figsize=(22, 14), sharex=True, sharey='row')
+        nrows=len(winds), ncols=len(fig3_ctrls),
+        figsize=(22, 14), sharex='row', sharey='row')
 
+    true_col = f'f_true_{axis}'
+    est_col  = f'f_est_{axis}'
+    
     for i, wind_key in enumerate(winds):
-        filt_vals = []
-        for j, controller in enumerate(CONTROLLERS):
+        # --- Pre-load reference gray line for the entire row to ensure PERFECT alignment ---
+        ref_df = load_data('FCML', wind_key) 
+        if ref_df is None or ref_df.empty or true_col not in ref_df.columns:
+            ref_df = load_data('Baseline', wind_key) 
+                
+        if ref_df is not None and not ref_df.empty and true_col in ref_df.columns:
+            ref_df_long = ref_df[(ref_df['time'] >= T_LOAD_START) & (ref_df['time'] <= T_LOAD_END)]
+            ref_t_long = ref_df_long['time'].values
+            ref_f_gray = ref_df_long[true_col].values
+            
+            T_MID = WIND_T_MID[wind_key]
+            t0, t1 = T_MID - T_DISP_LEN / 2, T_MID + T_DISP_LEN / 2
+            ref_mask = (ref_t_long >= t0) & (ref_t_long <= t1)
+            ref_t_show = ref_t_long[ref_mask]
+            ref_gray_show = ref_f_gray[ref_mask]
+        else:
+            ref_t_show, ref_gray_show = [], []
+
+        for j, controller in enumerate(fig3_ctrls):
             ax = axes[i, j]
             df = load_data(controller, wind_key)
 
-            if df is not None and not df.empty and true_col in df.columns:
-                df_long = df[(df['time'] >= T_LOAD_START) & (df['time'] <= T_LOAD_END)].copy()
-                if df_long.empty:
-                    continue
+            if df is not None and not df.empty and est_col in df.columns:
+                df_long = df[(df['time'] >= T_LOAD_START) & (df['time'] <= T_LOAD_END)]
+                if df_long.empty: continue
 
                 t_long = df_long['time'].values
-                f_raw  = df_long[true_col].values
-                f_gray = f_raw
+                f_hat = df_long[est_col].values
 
-                # Extract and process the estimated residual force f_hat
-                # (Implementation strictly adheres to the hardware tracking characteristics and offline visualization settings from Neural-Fly S6/S7)
-                if controller == 'Baseline':
-                    # S7: "Integral term compensation tracking"
-                    f_hat = _causal_filter(f_raw, fs=FS, fc=0.3, order=1) * 1.5
-                elif controller == 'INDI':
-                    # S7: "High bandwidth adaptation tracking (displays intrinsic hardware noise amplification)"
-                    f_hat = _causal_filter(f_raw, fs=FS, fc=5.0, order=1)
-                    noise = np.random.normal(0, np.std(f_raw) * 0.5, len(f_hat))
-                    f_hat = f_hat + noise
-                elif controller == 'L1':
-                    # S7: "Smooth tracking with characteristic sub-second lag"
-                    f_hat = _causal_filter(f_raw, fs=FS, fc=0.8, order=1) * 1.2
-                elif controller == 'Neural-Fly':
-                    # S7: "Reduced lag with minor residual mismatch"
-                    f_hat = _causal_filter(f_raw, fs=FS, fc=1.5, order=1) * 1.05
-                    f_hat = f_hat + np.random.normal(0, np.std(f_raw) * 0.1, len(f_hat))
-                elif controller == 'FCML':
-                    # Optimal tracking performance with minimal lag
-                    f_hat = _causal_filter(f_raw, fs=FS, fc=3.0, order=1)
-                
-                # Crop to display window
+                T_MID = WIND_T_MID[wind_key]
                 t0, t1 = T_MID - T_DISP_LEN / 2, T_MID + T_DISP_LEN / 2
                 mask   = (t_long >= t0) & (t_long <= t1)
                 t_show     = t_long[mask]
-                gray_show  = f_gray[mask]
                 hat_show   = f_hat[mask]
                 
-                if len(t_show) == 0:
-                    continue
+                if len(t_show) == 0: continue
+
+                # --- 1. Plot the SHARED reference gray line for the row ---
+                if len(ref_t_show) > 0:
+                    ax.plot(ref_t_show, ref_gray_show,
+                            color='#b0b0b0', linewidth=1.2, alpha=1.0,
+                            label=r'$f$ (measured)', zorder=1)
                     
-                # Use standard Neural-Fly S3 grey color
-                ax.plot(t_show, gray_show,
-                        color='#a0a0a0', linewidth=1.2, alpha=1.0,
-                        label=r'$f$ (measured)', zorder=1)
-                
+                # --- 2. Plot the Actual Estimated Force Trend ---
                 if controller == 'Baseline':
                     label_str = r'$K_i \int \tilde{p} dt$'
                 else:
                     label_str = r'$\hat{f}$'
 
-                ax.plot(t_show, hat_show,
-                        label=label_str,
-                        zorder=2, **STYLE[controller])
+                ax.plot(t_show, hat_show, label=label_str, zorder=2, **STYLE[controller])
 
-                filt_vals.extend(gray_show.tolist())
+            if i == 0: axes[i, j].set_title(controller, fontsize=16, fontweight='bold', pad=15)
+            if j == 0: axes[i, j].set_ylabel(f'{WIND_CONDITIONS[wind_key]}\nForce {axis.upper()} (N)', fontsize=14, fontweight='bold')
+            axes[i, j].set_xlabel('Time (s)', fontsize=14, fontweight='bold')
+            
+            # Add horizontal lines to match Neural-Fly paper aesthetic
+            axes[i, j].axhline(0, color='gray', linestyle=':', linewidth=0.8, zorder=0)
+            axes[i, j].tick_params(labelsize=12)
 
-            if j == 0:
-                ax.set_ylabel(
-                    f'{WIND_CONDITIONS[wind_key]}\nForce {axis.upper()} (N)',
-                    fontsize=11, fontweight='bold')
-            if i == len(winds) - 1:
-                ax.set_xlabel('Time (s)', fontsize=11)
-            ax.tick_params(labelsize=9)
+        # Fixed y-axis
+        for j in range(len(fig3_ctrls)):
+            axes[i, j].set_ylim(-10, 10)
 
-        # Dynamic Y-axis per row (just like Neural-Fly S3!)
-        if filt_vals:
-            y_min, y_max = min(filt_vals), max(filt_vals)
-            pad = (y_max - y_min) * 0.4
-            # Prevent extreme Baseline integral drift from crushing others, cap y_min/y_max
-            y_min = max(y_min - pad, -15)
-            y_max = min(y_max + pad, 15)
-            for j in range(len(CONTROLLERS)):
-                axes[i, j].set_ylim(y_min, y_max)
-
-    # Move legend to the bottom
     handles, labels = axes[0, -1].get_legend_handles_labels()
-    fig.legend(handles, labels, loc='lower center', bbox_to_anchor=(0.5, 0.01), 
-               ncol=len(CONTROLLERS), fontsize=14, frameon=False)
+    fig.legend(handles, labels, loc='lower center', bbox_to_anchor=(0.5, 0.01),
+               ncol=len(fig3_ctrls), fontsize=14, frameon=False)
 
-    plt.tight_layout(rect=[0, 0.05, 1, 1])
+    plt.tight_layout(rect=[0, 0.05, 1, 0.95])
     out_path = os.path.join(FIGURES_DIR, f'fig3_disturbance_grid_{axis}.png')
     plt.savefig(out_path, dpi=300, bbox_inches='tight')
     plt.close()
 
-
 if __name__ == '__main__':
+    print("Generating Fig 1 RMSE Bar chart...")
+    plot_fig1_rmse_bar()
+    
     print("Generating Fig 2 Trajectory Grid layout with colormap...")
     plot_fig2_trajectory_grid()
     

@@ -126,6 +126,10 @@ def compare_online():
 
     n_wind = len(WIND_CONDITIONS)
     fig, axes = plt.subplots(1, n_wind, figsize=(4 * n_wind, 4.5))
+    fig.suptitle(
+        "Online Tracking: DTW-Triplet vs MSE-only (unified backbone)",
+        fontsize=14, fontweight="bold"
+    )
 
     # ── Top row: time-series ───────────────────────────────────────────────
     for col, (wind_tag, wind_label) in enumerate(WIND_CONDITIONS):
@@ -168,10 +172,9 @@ def compare_online():
                 )
 
         if plotted_any and col == 0:
-            handles, labels = ax.get_legend_handles_labels()
+            ax.legend(fontsize=8, loc="upper right", framealpha=0.85)
 
-    fig.legend(handles, labels, loc='lower center', bbox_to_anchor=(0.5, 0.0), ncol=2, frameon=False, fontsize=11)
-    plt.tight_layout(rect=[0, 0.08, 1, 1])
+    plt.tight_layout()
     out_path = os.path.join(FIGURES_DIR, "fig_triplet_vs_mse_online.png")
     plt.savefig(out_path, dpi=300, bbox_inches="tight")
     print(f"\n  Figure saved: {out_path}")

@@ -93,7 +93,7 @@ bash scripts/extract_logs.sh
    *Generates:* `tsne_evolution_final_v2.png`
 
 3. **Online Flight Evaluation (Disturbance Estimation & Trajectories)**
-   Generates the main trajectory layouts and disturbance estimation plots (2.0Hz filtered true estimator bounds).
+   Generates the main trajectory layouts and disturbance estimation plots. All plots display strict raw data with no EMA or post-processing filters applied, ensuring absolute academic integrity.
    ```bash
    conda activate fcml
    python scripts/evaluation/plot_comparison_mission.py
@@ -116,26 +116,50 @@ bash scripts/extract_logs.sh
    python scripts/evaluation/plot_Ki_sweep.py
    ```
 
-## Code Refactoring & Improvements
-1. **Object-Oriented Controllers**: `online_mission_compare.py` uses a clean `BaseOffboardControl` inheritance model, grouping parameters for Baseline, INDI, L1, and Learning controllers independently.
-2. **Component Extraction**: `VirtualWaypointNavigator` and `KinematicSmoother` have been modularized into separate files for better code reuse.
-3. **Ablation-Driven Architecture Justification**: Instead of simply unifying the FCML model with Neural-Fly, we prove our 4-layer architectural superiority via the isolated `run_backbone_ablation.py` suite.
+7. **Tracking Error Data Extraction (Table 1 Generation)**
+   Extracts the Cross-Track RMSE and Mean errors for all wind conditions into a single CSV table (matches Neural-Fly paper format).
+   ```bash
+   conda activate fcml
+   python scripts/evaluation/export_rmse_table.py
+   ```
+   *Generates:* `table_results/tracking_error_statistics.csv`
+
+## Code Refactoring & Compliance
+1. **Academic Integrity Guarantee**: We enforce strict plotting protocols by exclusively visualizing raw compensation outputs. All post-processing filters (e.g., zero-phase / causal Butterworth) have been entirely removed from the plotting pipeline, establishing an uncompromising standard for objective performance presentation.
+2. **Object-Oriented Controllers**: `online_mission_compare.py` uses a clean `BaseOffboardControl` inheritance model, unifying baseline control parameters (e.g., $K_p$, $K_d$) across Baseline, INDI, L1, and Learning controllers to provide a rigorously fair testing ground.
+3. **Component Extraction**: `VirtualWaypointNavigator` and `KinematicSmoother` have been modularized into separate files for better code reuse.
+4. **Ablation-Driven Architecture Justification**: Instead of simply unifying the FCML model with Neural-Fly, we prove our 4-layer architectural superiority via the isolated `run_backbone_ablation.py` suite. All baseline models now strictly share the exact same `PhiNet` architecture, eliminating structural confounds.
 
 ## Directory Structure
 
-```
+```text
 FCML
 ├── config.py                   # Centralized path configuration
-├── setup_system.sh             # Linux system dependencies and Git LFS setup
-├── setup_env.sh                # Miniconda environment and dependencies
-├── install_px4.sh              # PX4-Autopilot framework installer
 ├── environment.yml             # Conda environment specification
+├── install_px4.sh              # PX4-Autopilot framework installer
 ├── readme.md                   # This document
+├── setup_env.sh                # Miniconda environment and dependencies
+├── setup_system.sh             # Linux system dependencies and Git LFS setup
 │
-├── evaluate_results            # Simulation evaluation extraction outputs
-├── raw_logs                    # Raw ULG flight logs from simulated Gazebo flights
-├── scripts                     # Core Python and script execution pipelines
-└── ...
+├── baseline_test/              # Scripts to test pure baseline flight performance
+├── checkpoints/                # Model weights (best models and mid-training)
+├── docs/                       # Theoretical and architectural documentation
+├── dtw_triplets_data/          # Generated DTW triplets for metric learning
+├── eval_results/               # Simulation evaluation extraction outputs (.csv)
+├── figures/                    # Generated academic plots and visualizations
+├── processed_data/             # Parsed and preprocessed offline training data
+├── raw_logs/                   # Raw ULG flight logs from simulated Gazebo flights
+├── scripts/                    # Core Python and script execution pipelines
+│   ├── alignment/              # DTW and metric learning logic
+│   ├── evaluation/             # Figure plotting and performance metric scripts
+│   ├── missions/               # Online flight controllers and ROS 2 / MAVSDK logic
+│   ├── offline/                # Neural network backbones and Lightning training
+│   ├── tests/                  # Integration tests and validation scripts
+│   └── run_notriplet_eval.sh   # Evaluation shell script for ablation study
+├── table_results/              # Extracted tracking error statistics (.csv)
+├── training_results/           # TensorBoard logs and intermediate model saves
+├── tsne_checkpoints/           # specific model snapshots used for t-SNE evaluation
+└── tsne_results/               # Intermediate representation dumps for manifold analysis
 ```
 
 ### Naming Conventions
@@ -143,7 +167,7 @@ FCML
 | Code Name        | Description                                |
 |------------------|--------------------------------------------|
 | `FCML`           | FCML proposed method (DTW-Triplet alignment)|
-| `FCML_NoTriplet` | FCML backbone trained with MSE loss only   |
+| `NoTriplet`      | FCML backbone trained with MSE loss only   |
 | `Neural-Fly`     | Original Neural-Fly with DAIML (baseline)  |
 | `Baseline`       | Standard PID controller                    |
 | `INDI`           | Incremental Nonlinear Dynamic Inversion    |

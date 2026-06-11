@@ -1,8 +1,12 @@
 import torch
 import os
-from scripts.offline.models import PhiNetwork, PhiNet
+import sys
 
-ckpt_path = 'checkpoints/neural_fly_daiml_best.pth'
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.append(project_root)
+
+from scripts.offline.models import PhiNetwork, PhiNet
+ckpt_path = os.path.join(project_root, 'checkpoints', 'neural_fly_daiml_best.pth')
 ckpt = torch.load(ckpt_path, map_location='cpu')
 
 if 'model_state_dict' in ckpt:

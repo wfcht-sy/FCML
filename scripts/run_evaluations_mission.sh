@@ -26,6 +26,28 @@ declare -a test_winds=(
 # 5 controllers under comparison
 CONTROLLERS=("Baseline" "INDI" "L1" "Neural-Fly" "FCML")
 
+# ==============================================================================
+# Per-Controller Re-run Configuration
+# Set to 'true' to force re-simulation even if data exists.
+# Set to 'false' to fast-skip if data already exists.
+# ==============================================================================
+declare -A RERUN_CONFIG
+RERUN_CONFIG=(
+    ["Baseline"]=false
+    ["INDI"]=false
+    ["L1"]=false
+    ["Neural-Fly"]=true
+    ["FCML"]=false
+)
+
+# Optional global override via command line (e.g., bash run_evaluations_mission.sh true)
+if [[ "$1" == "true" ]] || [[ "$1" == "--force-rerun" ]]; then
+    echo ">>> [Info] Global force re-run override is enabled. All scenarios will be re-simulated."
+    for ctrl in "${!RERUN_CONFIG[@]}"; do
+        RERUN_CONFIG[$ctrl]=true
+    done
+fi
+
 echo "======================================================"
 echo "Starting Virtual Mission evaluation for 5 controllers"
 echo "======================================================"
@@ -33,6 +55,14 @@ echo "======================================================"
 for ctrl in "${CONTROLLERS[@]}"; do
     for config in "${test_winds[@]}"; do
         read -r wx wy wz gx gy gz wname <<< "$config"
+        
+        CSV_FILE="${PROJECT_ROOT}/eval_results/eval_data_VirtualMission_${ctrl}_${wname}.csv"
+        
+        # Check per-controller re-run flag
+        if [ "${RERUN_CONFIG[$ctrl]}" = false ] && [ -f "$CSV_FILE" ]; then
+            echo ">>> [Skip] Controller: ${ctrl} | Wind: ${wname} (Data already exists)"
+            continue
+        fi
         
         SUCCESS=0
         while [ $SUCCESS -eq 0 ]; do
@@ -64,7 +94,7 @@ for ctrl in "${CONTROLLERS[@]}"; do
             fi
             
             # Hard timeout for the Python process to prevent MAVSDK deadlocks
-            timeout 120 python3 scripts/missions/online_mission_compare.py --controller "${ctrl}" --wind "${wname}"
+            timeout 120 python3 scripts/missions/online_mission_compare.py --controller "${ctrl}" --wind "${wname}" --force_rerun
             
             if [ $? -eq 0 ]; then
                 echo ">>> [OK] Test case completed successfully!"

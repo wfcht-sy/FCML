@@ -16,7 +16,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger, CSVLogger
 from torch.utils.data import Dataset, DataLoader
-from scripts.offline.models import PhiNetworkFCML, DomainDiscriminator, grad_reverse
+from scripts.offline.models import PhiNet, DomainDiscriminator, grad_reverse
 
 # Global FP64 — must match the float64 tensors in DAIMLDataset and the online controller
 torch.set_default_dtype(torch.float64)
@@ -69,7 +69,7 @@ class OriginalNeuralFlyDAIML(pl.LightningModule):
     def __init__(self, num_domains, lr=1e-3, lambda_adv=0.1, reg_lambda=1e-4, epochs=300):
         super().__init__()
         self.save_hyperparameters()
-        self.phi_net = PhiNetworkFCML(INPUT_DIM, BASIS_DIM)
+        self.phi_net = PhiNet(INPUT_DIM, BASIS_DIM)
         self.discriminator = DomainDiscriminator(BASIS_DIM, num_domains)
         
         self.mse_fn = nn.MSELoss()

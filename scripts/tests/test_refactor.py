@@ -4,15 +4,12 @@ import sys
 import os
 
 # Ensure paths
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'modify0513', 'FCML')))
+import sys, os
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.append(project_root)
 
-try:
-    from scripts.offline.models import PhiNetwork, PhiNet, AdaptiveControllerModel
-    from scripts.missions.online_mission_compare import BaseOffboardControl, BaselineController, get_controller
-except ImportError:
-    # Try alternate path if running from root
-    from modify0513.FCML.scripts.offline.models import PhiNetwork, PhiNet, AdaptiveControllerModel
-    from modify0513.FCML.scripts.missions.online_mission_compare import BaseOffboardControl, BaselineController, get_controller
+from scripts.offline.models import PhiNetwork, PhiNet, AdaptiveControllerModel
+from scripts.missions.online_mission_compare import BaseOffboardControl, BaselineController, get_controller
 
 def test_network_alignment():
     print("=== Testing Network Backbone Alignment ===")

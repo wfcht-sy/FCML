@@ -130,13 +130,13 @@ def plot_backbone_ablation():
         best = curves[g["key"]]["val_mse"].min()
         marker = ""
         if g["key"] == best_key:
-            marker = " ★"  # lowest offline MSE
+            marker = " *"  # lowest offline MSE
         if g["key"] == "ours_full":
-            marker += "†"  # our proposed method
-        marker = (marker + "  ")[:3]  # fixed width
-        print(f"  │ {g['label'].split(chr(10))[0]:<27s} │  {best:.6f} {marker}│")
-    print("  └─────────────────────────────┴──────────────┘")
-    print("  ★ = lowest offline val_mse   † = our proposed method")
+            marker += "[Ours]"  # our proposed method
+        marker = (marker + "      ")[:6]  # fixed width
+        print(f"  | {g['label'].split(chr(10))[0]:<27s} |  {best:.6f} {marker}|")
+    print("  +-----------------------------+--------------+")
+    print("  * = lowest offline val_mse   [Ours] = our proposed method")
     print("  Note: DTW-Triplet trades small offline MSE for domain-invariant")
     print("        features; online tracking performance is the primary metric.")
 
